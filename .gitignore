@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# dataset gambar besar tidak perlu di GitHub (cukup di Google Drive)
+*.zip
+dataset_gambar*/
+*.bak
+.streamlit/secrets.toml
+secrets.toml
+FEATURE_CHECKLIST.md
