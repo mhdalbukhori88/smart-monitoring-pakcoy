@@ -230,13 +230,36 @@ def build_report(cnn=None, lstm=None, green=None, table=None, sensor=None):
         tahap_str = CLASS_LABELS.get(cnn[0], cnn[0])
         L += ["## Analisis foto (CNN)", f"- Tahap: {tahap_str} (keyakinan {cnn[1]:.0%})"]
     if green:
+        w_raw = green.get('width_cm')
+        h_raw = green.get('height_cm')
+        a_raw = green.get('area_cm2')
+        try:
+            w_val = float(w_raw) if w_raw is not None else 0.0
+        except (ValueError, TypeError):
+            w_val = 0.0
+        try:
+            h_val = float(h_raw) if h_raw is not None else 0.0
+        except (ValueError, TypeError):
+            h_val = 0.0
+        try:
+            a_val = float(a_raw) if a_raw is not None else 0.0
+        except (ValueError, TypeError):
+            a_val = 0.0
+
         est_txt = " (estimasi)" if green.get("is_estimated_cm") else ""
-        L += [f"- Tutupan daun pada foto: {green['coverage_pct']:.1f}%",
-              f"- Kerapatan rumpun daun: {green['compactness']:.0%}",
-              f"- Tingkat daun menguning: {green['yellow_pct']:.1f}%",
-              f"- Kepekatan warna hijau: {green['greenness']:.0f}%",
-              f"- Bentang rumpun daun (lebar × panjang): {green.get('width_cm', 0.0):.1f} × {green.get('height_cm', 0.0):.1f} cm{est_txt}",
-              f"- Perkiraan luas area daun: {green.get('area_cm2', 0.0):.0f} cm²{est_txt}"]
+        bentang_txt = f"{w_val:.1f} × {h_val:.1f} cm{est_txt}" if (w_val > 0 and h_val > 0) else "Belum terkalibrasi"
+        luas_txt = f"{a_val:.0f} cm²{est_txt}" if a_val > 0 else "Belum terkalibrasi"
+        cov = float(green.get('coverage_pct') or 0.0)
+        comp = float(green.get('compactness') or 0.0)
+        yel = float(green.get('yellow_pct') or 0.0)
+        grn = float(green.get('greenness') or 0.0)
+
+        L += [f"- Tutupan daun pada foto: {cov:.1f}%",
+              f"- Kerapatan rumpun daun: {comp:.0%}",
+              f"- Tingkat daun menguning: {yel:.1f}%",
+              f"- Kepekatan warna hijau: {grn:.0f}%",
+              f"- Bentang rumpun daun (lebar × panjang): {bentang_txt}",
+              f"- Perkiraan luas area daun: {luas_txt}"]
     if cnn or green:
         L.append("")
     if lstm:

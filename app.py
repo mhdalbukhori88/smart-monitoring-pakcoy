@@ -815,11 +815,27 @@ def photo_panel(m, img, key):
         ui.banner("warn", f"⚠️ Tutupan daun hijau pada foto sangat rendah ({g['coverage_pct']:.1f}%). Pastikan foto menampilkan daun tanaman dengan jelas.")
 
     # Status indikator visual yang ramah orang awam (satuan cm & cm²)
-    w_cm = g.get("width_cm", 0.0)
-    h_cm = g.get("height_cm", 0.0)
-    a_cm2 = g.get("area_cm2", 0.0)
-    is_est = g.get("is_estimated_cm", True)
-    prefix_est = "± " if is_est else ""
+    w_raw = g.get("width_cm")
+    h_raw = g.get("height_cm")
+    a_raw = g.get("area_cm2")
+    try:
+        w_cm = float(w_raw) if w_raw is not None else 0.0
+    except (ValueError, TypeError):
+        w_cm = 0.0
+    try:
+        h_cm = float(h_raw) if h_raw is not None else 0.0
+    except (ValueError, TypeError):
+        h_cm = 0.0
+    try:
+        a_cm2 = float(a_raw) if a_raw is not None else 0.0
+    except (ValueError, TypeError):
+        a_cm2 = 0.0
+
+    is_est = bool(g.get("is_estimated_cm", True))
+    prefix_est = "± " if is_est and w_cm > 0 else ""
+
+    bentang_val = f"{prefix_est}{w_cm:.1f} × {h_cm:.1f} cm" if (w_cm > 0 and h_cm > 0) else "Belum terkalibrasi"
+    luas_val = f"{prefix_est}{a_cm2:.0f} cm²" if a_cm2 > 0 else "Belum terkalibrasi"
 
     if g['yellow_pct'] < 2.0:
         yellow_sub = "Sangat segar (bebas klorosis)"
@@ -845,9 +861,9 @@ def photo_panel(m, img, key):
              sub="Persentase area foto terisi daun"),
         dict(icon="layers", label="Kerapatan Rumpun Daun", value=f"{g['compactness']:.0%}", color="#38bdf8",
              sub=compact_sub),
-        dict(icon="maximize", label="Bentang Daun (Lebar × Panjang)", value=f"{prefix_est}{w_cm:.1f} × {h_cm:.1f} cm", color="#a78bfa",
+        dict(icon="maximize", label="Bentang Daun (Lebar × Panjang)", value=bentang_val, color="#a78bfa",
              sub="Ukuran fisik terluar tanaman"),
-        dict(icon="maximize", label="Perkiraan Luas Daun", value=f"{prefix_est}{a_cm2:.0f} cm²", color="#fb923c",
+        dict(icon="maximize", label="Perkiraan Luas Daun", value=luas_val, color="#fb923c",
              sub="Total luas bidang daun hijau"),
         dict(icon="sprout", label="Tingkat Daun Menguning", value=f"{g['yellow_pct']:.1f}%", color=yellow_col,
              sub=yellow_sub),
