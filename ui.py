@@ -54,7 +54,11 @@ ICONS = {
     "maximize": '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
     "sliders": '<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="1" x2="7" y1="14" y2="14"/><line x1="9" x2="15" y1="8" y2="8"/><line x1="17" x2="23" y1="16" y2="16"/>',
     "camera": '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
-    "message-square": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+    "message-square": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    "user": '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    "user-plus": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="11" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+    "lock": '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    "log-out": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>'
 }
 
 ICON_MAP = {
@@ -145,28 +149,103 @@ header[data-testid="stHeader"] {
   z-index: 99 !important;
 }
 
-/* Sidebar Toggle / Reopen Button */
+/* Floating Sidebar Reopen / Expand Button (Saat Sidebar Tertutup) */
+[data-testid="stExpandSidebarButton"],
+[data-testid="stExpandSidebarButton"] button,
+button[data-testid="stExpandSidebarButton"],
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {
+[data-testid="collapsedControl"],
+header[data-testid="stHeader"] button[aria-label="Expand sidebar"] {
   display: flex !important;
   visibility: visible !important;
-  color: var(--primary) !important;
-  background-color: var(--canvas) !important;
-  border: 1px solid var(--hairline) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: rgba(0, 55, 112, 0.08) 0 2px 8px !important;
-  margin: 8px !important;
+  position: fixed !important;
+  top: 14px !important;
+  left: 14px !important;
   z-index: 999999 !important;
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #ffffff !important;
+  color: #533afd !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  outline: none !important;
 }
 
-/* Sidebar Container: lebar kembali ke sekitar 280-300px (290px) */
-section[data-testid="stSidebar"],
-[data-testid="stSidebar"] {
-  background-color: var(--canvas) !important;
-  border-right: 1px solid var(--hairline) !important;
-  width: 290px !important;
-  min-width: 280px !important;
-  max-width: 300px !important;
+[data-testid="stExpandSidebarButton"]:hover,
+[data-testid="stExpandSidebarButton"] button:hover,
+button[data-testid="stExpandSidebarButton"]:hover,
+[data-testid="stSidebarCollapsedControl"]:hover,
+[data-testid="collapsedControl"]:hover,
+header[data-testid="stHeader"] button[aria-label="Expand sidebar"]:hover {
+  background-color: #f5f3ff !important;
+  border-color: #c7d2fe !important;
+  color: #3730a3 !important;
+  transform: translateY(-1px) scale(1.04) !important;
+  box-shadow: 0 6px 18px rgba(83, 58, 253, 0.16) !important;
+}
+
+[data-testid="stExpandSidebarButton"] svg,
+[data-testid="stExpandSidebarButton"] span,
+button[data-testid="stExpandSidebarButton"] svg,
+button[data-testid="stExpandSidebarButton"] span {
+  color: inherit !important;
+  fill: currentColor !important;
+}
+
+/* Sidebar Container saat Terbuka (Expanded) */
+section[data-testid="stSidebar"]:not([data-collapsed="true"]):not([aria-expanded="false"]),
+[data-testid="stSidebar"]:not([data-collapsed="true"]):not([aria-expanded="false"]) {
+  background-color: #ffffff !important;
+  border-right: 1px solid #eef2f6 !important;
+  width: 285px !important;
+  min-width: 285px !important;
+  max-width: 285px !important;
+  transform: none !important;
+  visibility: visible !important;
+  box-shadow: 2px 0 16px rgba(15, 23, 42, 0.04) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s ease !important;
+  z-index: 100 !important;
+}
+
+/* Sidebar Container saat Tertutup (Collapsed) - HILANGKAN TOTAL, jangan sisakan pilar kosong */
+section[data-testid="stSidebar"][data-collapsed="true"],
+[data-testid="stSidebar"][data-collapsed="true"],
+section[data-testid="stSidebar"][aria-expanded="false"],
+[data-testid="stSidebar"][aria-expanded="false"] {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  flex: 0 0 0 !important;
+  border: none !important;
+  border-right: none !important;
+  transform: translateX(-100%) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+/* Sembunyikan resize handle saat sidebar tertutup */
+section[data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stSidebarResizeHandle"],
+[data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarResizeHandle"] {
+  display: none !important;
+}
+
+/* Layout utama menyesuaikan lebar layar secara halus */
+.stAppViewContainer,
+[data-testid="stAppViewContainer"] {
+  transition: margin-left 0.25s ease !important;
 }
 
 /* Typography: Apply Inter selectively (DO NOT use universal * which breaks Material Symbols icons) */
@@ -203,11 +282,11 @@ span[class*="Icon"],
   word-wrap: normal !important;
 }
 
-/* Tombol buka-tutup sidebar di dalam header sidebar */
+/* Header Sidebar & Tombol Tutup (<<) */
 [data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
   height: auto !important;
-  min-height: 28px !important;
-  padding: 6px 12px 0 12px !important;
+  min-height: 38px !important;
+  padding: 8px 14px 4px 14px !important;
   margin: 0 !important;
   display: flex !important;
   justify-content: flex-end !important;
@@ -217,21 +296,33 @@ span[class*="Icon"],
 }
 
 [data-testid="stSidebar"] button[aria-label="Collapse sidebar"],
-[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
-  display: flex !important;
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button {
+  display: inline-flex !important;
   visibility: visible !important;
-  color: var(--ink-mute) !important;
-  background: transparent !important;
-  border: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 8px !important;
+  color: #64748b !important;
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
   box-shadow: none !important;
   cursor: pointer !important;
-  padding: 4px !important;
+  padding: 0 !important;
   margin: 0 !important;
+  transition: all 0.15s ease !important;
 }
 
 [data-testid="stSidebar"] button[aria-label="Collapse sidebar"]:hover,
-[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]:hover {
-  color: var(--primary) !important;
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]:hover,
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button:hover {
+  color: #533afd !important;
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
 }
 
 /* Sidebar Scroll & Content Container: padding horizontal 16px, padding atas 8px */
@@ -276,14 +367,14 @@ span[class*="Icon"],
   padding: 0 !important;
 }
 
-/* Brand Section: SATU baris, gap 10px, kotak ikon 36px, sub 13.5px jarak 6px */
+/* Brand Section: SATU baris, gap 10px, kotak ikon 36px, sub 12.5px jarak 5px */
 .brand {
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  font-size: 20px !important;
-  font-weight: 600 !important;
-  color: #0d253d !important;
+  font-size: 17.5px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
   margin: 0 !important;
   padding: 0 !important;
   letter-spacing: -0.02em !important;
@@ -292,11 +383,11 @@ span[class*="Icon"],
 }
 
 .brand span:last-child {
-  font-size: 20px !important;
-  font-weight: 600 !important;
+  font-size: 17.5px !important;
+  font-weight: 700 !important;
   letter-spacing: -0.02em !important;
   white-space: nowrap !important;
-  color: #0d253d !important;
+  color: #0f172a !important;
 }
 
 .brand-icon-box {
@@ -304,9 +395,10 @@ span[class*="Icon"],
   height: 36px !important;
   min-width: 36px !important;
   min-height: 36px !important;
-  border-radius: 8px !important;
-  background-color: var(--primary-subdued) !important;
-  color: var(--primary) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #ede9fe 100%) !important;
+  border: 1px solid #e0e7ff !important;
+  color: #533afd !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -314,12 +406,12 @@ span[class*="Icon"],
 }
 
 .brand-sub {
-  color: #64748d !important;
-  font-size: 13.5px !important;
-  margin-top: 6px !important;
+  color: #64748b !important;
+  font-size: 12.5px !important;
+  margin-top: 5px !important;
   margin-bottom: 0 !important;
   padding: 0 !important;
-  line-height: 1.45 !important;
+  line-height: 1.4 !important;
   display: block !important;
 }
 
@@ -327,10 +419,10 @@ span[class*="Icon"],
 .micro-cap {
   display: block !important;
   font-size: 11px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.08em !important;
-  color: #64748d !important;
+  color: #94a3b8 !important;
   line-height: 14px !important;
   padding-top: 20px !important;
   padding-bottom: 8px !important;
@@ -545,6 +637,60 @@ span[class*="Icon"],
 [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] > label:nth-of-type(8)::before {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+}
+
+/* Sidebar Action Buttons & Uploader Styling */
+.st-key-reload_models button {
+  width: 100% !important;
+  height: 38px !important;
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  background-color: #ffffff !important;
+  color: #475569 !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.st-key-reload_models button:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.st-key-btn_logout button {
+  width: 100% !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  border: 1px solid #fee2e2 !important;
+  background-color: #fff5f5 !important;
+  color: #dc2626 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.st-key-btn_logout button:hover {
+  background-color: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+  width: 100% !important;
+  margin-bottom: 8px !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
+  padding: 8px 10px !important;
+  background-color: #f8fafc !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 10px !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section:hover {
+  border-color: #818cf8 !important;
+  background-color: #f5f3ff !important;
 }
 
 /* ================================================================= AI Assistant Framed Card Interface */
@@ -1666,8 +1812,8 @@ span[class*="Icon"],
 }
 
 /* Streamlit Native Components Light Overrides - Main area secondary buttons only */
-.main .stButton > button[kind="secondary"],
-[data-testid="stMainBlockContainer"] div:not([class*="sug_card_"]):not(.st-key-chat_header_row) > .stButton > button[kind="secondary"] {
+.main .stButton > button[kind="secondary"]:not([class*="btn_toggle_mode"]),
+[data-testid="stMainBlockContainer"] div:not([class*="sug_card_"]):not(.st-key-chat_header_row):not(.st-key-btn_toggle_mode) > .stButton > button[kind="secondary"] {
   background-color: var(--canvas) !important;
   color: var(--primary) !important;
   border: 1px solid var(--primary) !important;
@@ -1887,5 +2033,5 @@ def chips(items, container=None):
 
 
 def footer():
-    st.markdown('<div class="footer">Smart Farming Pakcoy · LSTM + CNN · data pelatihan sebagian simulasi</div>',
+    st.markdown('<div class="footer">Smart Farming Pakcoy · LSTM + CNN · Siklus Perkembangan Tanaman Pakcoy</div>',
                 unsafe_allow_html=True)

@@ -7,6 +7,7 @@ from utils import CLASS_NAMES, CLASS_LABELS, MATURITY_COL
 
 # Warna tema DESIGN.md
 STAGE_COLORS = {
+    "bukan_pakcoy": "#ea2261",      # Ruby Red (Objek Bukan Pakcoy / Peringatan)
     "masa_pertumbuhan": "#533afd",  # Primary Indigo
     "mendekati_panen": "#9b6829",   # Lemon / Amber
     "siap_panen": "#00875a"         # Soft Green
@@ -76,8 +77,8 @@ def maturity_curve(df):
         if len(d):
             fig.add_trace(go.Scatter(x=d["DAP"], y=d[MATURITY_COL], mode="lines+markers", name=CLASS_LABELS[k],
                                      line=dict(color=STAGE_COLORS[k], width=3), marker=dict(size=6)))
-    return _layout(fig, "Tingkat Kematangan Pakcoy terhadap Hari Setelah Tanam (DAP)", height=380,
-                   xtitle="DAP (hari)", ytitle="Maturity (%)")
+    return _layout(fig, "Tingkat Kematangan Tanaman terhadap Hari Setelah Tanam (DAP)", height=380,
+                   xtitle="DAP (hari)", ytitle="Tingkat Kematangan Tanaman (%)")
 
 
 def hist_moisture(df, dry, wet):
@@ -139,12 +140,12 @@ def growth_curve(grow, thresholds):
     fig.add_hrect(y0=0, y1=thresholds[0], fillcolor="#533afd", opacity=0.06, line_width=0)
     fig.add_hrect(y0=thresholds[0], y1=thresholds[1], fillcolor="#9b6829", opacity=0.06, line_width=0)
     fig.add_hrect(y0=thresholds[1], y1=100, fillcolor="#00875a", opacity=0.08, line_width=0)
-    fig.add_trace(go.Scatter(x=x, y=y, mode="lines", name="Maturity", line=dict(color="#00875a", width=3)))
+    fig.add_trace(go.Scatter(x=x, y=y, mode="lines", name="Tingkat Kematangan", line=dict(color="#00875a", width=3)))
     if x:
         fig.add_trace(go.Scatter(x=[x[-1]], y=[y[-1]], mode="markers", name="Sekarang", marker=dict(color="#00875a", size=10)))
     fig.update_yaxes(range=[0, 100])
-    return _layout(fig, "Perkembangan maturity sejak awal tanam", height=300, legend=False,
-                   xtitle="Pembacaan ke-", ytitle="Maturity (%)")
+    return _layout(fig, "Perkembangan Tingkat Kematangan sejak Awal Tanam", height=300, legend=False,
+                   xtitle="Pembacaan ke-", ytitle="Tingkat Kematangan Tanaman (%)")
 
 
 def gauge(value, title, thresholds=(66.5, 89.0)):
@@ -195,11 +196,11 @@ def maturity_forecast(pred_x, pred_y, thresholds, last_x=None, last_y=None):
                   annotation_text="Mendekati Panen", annotation_position="top left", annotation_font_color="#9b6829")
     fig.add_hrect(y0=thresholds[1], y1=100, fillcolor="#00875a", opacity=0.08, line_width=0,
                   annotation_text="Siap Panen", annotation_position="top left", annotation_font_color="#00875a")
-    fig.add_trace(go.Scatter(x=pred_x, y=pred_y, mode="lines+markers", name="Maturity prediksi",
+    fig.add_trace(go.Scatter(x=pred_x, y=pred_y, mode="lines+markers", name="Prediksi Kematangan",
                              line=dict(color="#00875a", width=3), marker=dict(size=8, color="#00875a")))
     fig.update_yaxes(range=[0, 100])
-    return _layout(fig, "Prediksi maturity 4 hari ke depan", height=340, legend=False,
-                   xtitle="Pembacaan ke-", ytitle="Maturity (%)")
+    return _layout(fig, "Prediksi Tingkat Kematangan 4 Hari ke Depan", height=340, legend=False,
+                   xtitle="Pembacaan ke-", ytitle="Tingkat Kematangan Tanaman (%)")
 
 
 def confusion_fig(cm, names, title):

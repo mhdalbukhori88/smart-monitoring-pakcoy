@@ -10,3 +10,4 @@ dataset_gambar*/
 .streamlit/secrets.toml
 secrets.toml
 FEATURE_CHECKLIST.md
+*.db

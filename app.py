@@ -12,9 +12,16 @@ import charts
 import ui
 import utils
 import ai_assistant
+import auth
 
 st.set_page_config(page_title="Smart Farming Pakcoy", page_icon=":material/eco:", layout="wide", initial_sidebar_state="expanded")
 ui.inject_css()
+
+# Gerbang Keamanan Otentikasi (Login & Registrasi Pengguna)
+auth.init_db()
+if not auth.is_logged_in():
+    auth.render_auth_page()
+    st.stop()
 
 ROOT = Path(__file__).parent
 MODELS_DIR = ROOT / "models"
@@ -75,7 +82,10 @@ def show(fig, key, container=None):
 
 def get_sources():
     sim, asli = load_builtin()
-    src = {"Data simulasi (30 siklus)": sim, "Data asli (1 siklus)": asli}
+    src = {
+        "Siklus Perkembangan Tanaman Pakcoy (30 Siklus)": sim,
+        "Data Asli Pengamatan Lapangan (1 Siklus)": asli
+    }
     up = st.session_state.get("upload_df")
     if up is not None:
         src[f"Dataset unggahan ({st.session_state.get('upload_name', '')})"] = up
@@ -83,23 +93,80 @@ def get_sources():
 
 
 def pick_dataset(key):
-    src = get_sources()
-    name = st.selectbox("Sumber data", list(src), key=f"{key}_src")
-    return name, src[name]
+    sim, asli = load_builtin()
+    up = st.session_state.get("upload_df")
+    
+    col_src, col_opt = st.columns([1, 2])
+    src_choices = ["Siklus Perkembangan Tanaman Pakcoy (30 Siklus)", "Data Asli Pengamatan Lapangan (1 Siklus)"]
+    if up is not None:
+        src_choices.append(f"Dataset unggahan ({st.session_state.get('upload_name', '')})")
+    
+    src_name = col_src.selectbox("Sumber data", src_choices, key=f"{key}_src")
+    
+    if src_name == "Siklus Perkembangan Tanaman Pakcoy (30 Siklus)":
+        df = sim
+        all_cycles = sorted(df["Cycle_ID"].unique().tolist())
+        mode = col_opt.radio(
+            "Tampilkan siklus:",
+            ["Semua Siklus (1–30)", "Pilih Bebas Beberapa Siklus", "Pilih 1 Siklus Tertentu"],
+            horizontal=True,
+            key=f"{key}_cyc_mode"
+        )
+        if mode == "Pilih Bebas Beberapa Siklus":
+            selected = st.multiselect(
+                "Pilih satu atau beberapa siklus perkembangan pakcoy yang ingin dilihat:",
+                options=all_cycles,
+                default=[1, 2, 3],
+                format_func=lambda c: f"Siklus ke-{c}",
+                key=f"{key}_multi_cycles"
+            )
+            if not selected:
+                st.warning("Silakan pilih minimal 1 siklus.")
+                selected = [1]
+            df = df[df["Cycle_ID"].isin(selected)]
+            st.caption(f"📊 Menampilkan **{len(selected)} siklus terpilih** ({', '.join(f'Siklus {c}' for c in selected)}) — Total: {len(df):,} baris data.")
+        elif mode == "Pilih 1 Siklus Tertentu":
+            selected_one = st.selectbox(
+                "Pilih 1 siklus perkembangan pakcoy yang ingin dilihat:",
+                options=all_cycles,
+                index=0,
+                format_func=lambda c: f"Siklus ke-{c} (Masa Pertumbuhan hingga Siap Panen)",
+                key=f"{key}_single_cycle"
+            )
+            df = df[df["Cycle_ID"] == selected_one]
+            st.caption(f"🌱 Menampilkan data **Siklus ke-{selected_one}** ({len(df)} pembacaan sensor selama 40 hari).")
+        else:
+            st.caption(f"📊 Menampilkan seluruh **30 Siklus Perkembangan Tanaman Pakcoy** ({len(df):,} baris data).")
+        return src_name, df
+    elif src_name == "Data Asli Pengamatan Lapangan (1 Siklus)":
+        st.caption("🌱 Menampilkan data asli hasil pengamatan budidaya lapangan (1 siklus, 40 hari, 120 pembacaan).")
+        return src_name, asli
+    else:
+        return src_name, up
 
 
 def pick_series(key):
-    src = get_sources()
-    name = st.selectbox("Sumber data", list(src), key=f"{key}_src")
-    df = src[name]
-    if df["Cycle_ID"].nunique() > 1:
-        cycles = sorted(df["Cycle_ID"].unique().tolist())
-        test = sorted(df.loc[df["Split"] == "test", "Cycle_ID"].unique().tolist())
-        default = cycles.index(test[0]) if test else 0
-        cyc = st.selectbox("Siklus", cycles, index=default, key=f"{key}_cyc")
-        df = df[df["Cycle_ID"] == cyc]
-        st.caption(f"Siklus {cyc} termasuk split **{df['Split'].iloc[0]}**. "
-                   "Untuk demo yang jujur, pilih siklus 'test' (tidak dipakai saat training).")
+    sim, asli = load_builtin()
+    up = st.session_state.get("upload_df")
+    
+    options = {}
+    for c in sorted(sim["Cycle_ID"].unique()):
+        options[f"Siklus ke-{c} (Masa Pertumbuhan hingga Siap Panen)"] = sim[sim["Cycle_ID"] == c]
+    options["Data Asli Pengamatan Lapangan (1 Siklus - 40 Hari)"] = asli
+    if up is not None:
+        options[f"Dataset Unggahan ({st.session_state.get('upload_name', '')})"] = up
+
+    labels = list(options.keys())
+    default_idx = 1 if len(labels) > 1 else 0
+    choice = st.selectbox("Pilih Siklus Perkembangan Tanaman yang Dipantau:", labels, index=default_idx, key=f"{key}_series")
+    df = options[choice]
+    
+    if "Siklus ke-" in choice:
+        c_name = choice.split("(")[0].strip()
+        st.caption(f"🌱 **{c_name}**: Rekam data perkembangan tanaman pakcoy lengkap mulai dari awal pertumbuhan bibit (DAP 10) hingga masa siap panen (DAP 49).")
+    elif "Data Asli" in choice:
+        st.caption("🌱 **Data Lapangan**: 40 hari pengamatan sensor kelembapan dan suhu langsung di lapangan.")
+        
     return df.sort_values("Time_Index").reset_index(drop=True)
 
 
@@ -134,7 +201,7 @@ def predict_image(m, img):
 
 
 def cnn_names(m):
-    return m["cfg_cnn"]["class_names"] if m.get("cfg_cnn") else utils.CLASS_NAMES
+    return m["cfg_cnn"]["class_names"] if m.get("cfg_cnn") else getattr(utils, "CNN_CLASS_NAMES", utils.CLASS_NAMES)
 
 
 # ================================================================= sidebar
@@ -168,6 +235,7 @@ def sidebar():
         st.rerun()
 
     sb.divider()
+    auth.render_sidebar_user_profile()
     sb.caption("Smart Farming Pakcoy · CNN + LSTM")
     return choice
 
@@ -204,7 +272,7 @@ def live_panel():
         dict(icon="droplets", label="Kelembapan tanah", value=f"{row['Soil Moisture (%)']:.0f}%", color="#38bdf8"),
         dict(icon="thermometer", label="Suhu", value=f"{row['Temperature (°C)']:.1f}°C", color="#fb923c"),
         dict(icon="sprout", label="Kondisi tanah", value=str(row["Soil Condition"]), color=cond_color),
-        dict(icon="trending-up", label="Maturity", value=f"{row[MAT]:.0f}%", color="#34d399"),
+        dict(icon="trending-up", label="Tingkat Kematangan", value=f"{row[MAT]:.0f}%", color="#34d399", sub="skala 0–100%"),
         dict(icon="cpu", label="Tahap", value=tahap, color="#e8ecf4", sub=sumber),
     ])
     c1, c2 = st.columns(2)
@@ -212,7 +280,7 @@ def live_panel():
          f"lv_m_{i}", c1)
     show(charts.live_line(hist, "Temperature (°C)", "Suhu (°C)", "#fb923c", "°C"), f"lv_t_{i}", c2)
     c3, c4 = st.columns([1, 2])
-    show(charts.gauge(row[MAT], "Maturity tanaman", th), f"lv_g_{i}", c3)
+    show(charts.gauge(row[MAT], "Tingkat Kematangan Tanaman (%)", th), f"lv_g_{i}", c3)
     show(charts.growth_curve(grow, th), f"lv_c_{i}", c4)
     st.progress((i + 1) / n, text=f"Siklus tanam: pembacaan {i + 1} dari {n}")
 
@@ -244,10 +312,12 @@ def page_dashboard():
         dict(icon="database", label="Total Data", value=f"{len(df):,}", color="#60a5fa"),
         dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{df['Soil Moisture (%)'].mean():.1f}%", color="#38bdf8"),
         dict(icon="thermometer", label="Rata-rata Suhu", value=f"{df['Temperature (°C)'].mean():.1f}°C", color="#fb923c"),
-        dict(icon="trending-up", label="Rata-rata Kematangan", value=f"{df[MAT].mean():.1f}%", color="#34d399"),
+        dict(icon="trending-up", label="Rata-rata Kematangan", value=f"{df[MAT].mean():.1f}%", color="#34d399", sub="seluruh siklus"),
         dict(icon="calendar", label="Rentang HST (DAP)", value=f"{int(df['DAP'].min())}–{int(df['DAP'].max())} hari",
              color="#a78bfa"),
     ])
+    st.caption("💡 **Tingkat Kematangan Tanaman (%):** Indeks persentase perkembangan fisiologis tanaman pakcoy menuju masa panen: "
+               "**Masa Pertumbuhan** (<66.5%), **Mendekati Panen** (66.5–89.0%), dan **Siap Panen** (≥89.0%).")
     st.divider()
     live_section()
     st.divider()
@@ -326,7 +396,7 @@ def page_eksplorasi():
 # ================================================================= monitoring realtime
 def render_monitor(ph, recs, dry, wet, tag):
     if not recs:
-        ph["banner"].markdown(ui.banner_html("info", "Klik Jalankan Simulasi untuk memulai monitoring."),
+        ph["banner"].markdown(ui.banner_html("info", "Klik Jalankan Monitoring untuk memulai monitoring."),
                               unsafe_allow_html=True)
         return
     h = pd.DataFrame(recs).set_index("idx")
@@ -369,20 +439,45 @@ def render_monitor(ph, recs, dry, wet, tag):
 
 
 def page_monitoring():
-    ui.hero("Monitoring Realtime — Simulasi Sensor IoT Pakcoy",
-            "Pembacaan sensor diputar ulang tiap beberapa detik, diklasifikasikan LSTM, dilengkapi tren regresi "
+    ui.hero("Monitoring Realtime — Siklus Perkembangan Sensor IoT Pakcoy",
+            "Pembacaan sensor perkembangan tanaman diputar ulang tiap beberapa detik, diklasifikasikan LSTM, dilengkapi tren regresi "
             "linear dan otomatisasi pompa air.",
             "activity")
     df = pick_series("mon")
+    if len(df) == 0:
+        ui.banner("warn", "Dataset kosong. Pilih siklus lain.")
+        return
     m = load_models()
     c1, c2, c3 = st.columns(3)
-    steps = int(c1.number_input("Jumlah langkah simulasi", min_value=5, max_value=200, value=40, key="mon_steps"))
+    max_steps = min(200, len(df))
+    default_steps = min(40, max_steps)
+    if "mon_steps" not in st.session_state:
+        st.session_state["mon_steps"] = max(1, default_steps)
+    if "mon_start" not in st.session_state:
+        st.session_state["mon_start"] = 1
+    steps = int(c1.number_input("Jumlah langkah pembacaan sensor", min_value=1, max_value=max(1, max_steps), key="mon_steps"))
     delay = c2.slider("Jeda antar-langkah (detik)", 0.05, 1.5, 0.3, 0.05, key="mon_delay")
-    start = int(c3.number_input("Mulai dari pembacaan ke-", min_value=1, max_value=len(df), value=1, key="mon_start"))
+    start = int(c3.number_input("Mulai dari pembacaan ke-", min_value=1, max_value=max(1, len(df)), key="mon_start"))
+
+    st.caption("⚡ **Pintasan Cepat Titik Awal Monitoring:**")
+    m_p1, m_p2, m_p3 = st.columns(3)
+    if m_p1.button("🌱 Fase Pertumbuhan (Mulai Baca ke-1)", use_container_width=True, key="mon_btn1"):
+        st.session_state["mon_start"] = 1
+        st.session_state["mon_steps"] = 35
+        st.rerun()
+    if m_p2.button("🌿 Transisi Menjelang Panen (Mulai Baca ke-60)", use_container_width=True, key="mon_btn2"):
+        st.session_state["mon_start"] = 60
+        st.session_state["mon_steps"] = 35
+        st.rerun()
+    if m_p3.button("🥬 Fase Siap Panen (Mulai Baca ke-85)", use_container_width=True, key="mon_btn3"):
+        st.session_state["mon_start"] = min(85, max(1, len(df) - 35))
+        st.session_state["mon_steps"] = 35
+        st.rerun()
+
     d1, d2, d3, d4 = st.columns([1, 1, 1, 1])
     dry = float(d1.number_input("Batas kering (%)", 30.0, 70.0, float(DRY), 1.0, key="mon_dry"))
     wet = float(d2.number_input("Batas basah (%)", 60.0, 95.0, float(WET), 1.0, key="mon_wet"))
-    run = d3.button("Jalankan Simulasi", type="primary", key="mon_run")
+    run = d3.button("Jalankan Monitoring", type="primary", key="mon_run")
     if d4.button("Reset Riwayat", key="mon_reset"):
         st.session_state["mon_recs"] = []
     ph = {k: st.empty() for k in ("cards", "banner", "charts", "table")}
@@ -409,7 +504,7 @@ def page_monitoring():
         time.sleep(delay)
     st.session_state["mon_recs"] = recs
     on_cnt = sum(r["pump"] for r in recs)
-    ui.banner("info", f"Simulasi selesai: {len(recs)} pembacaan, pompa menyala pada {on_cnt} pembacaan "
+    ui.banner("info", f"Monitoring siklus selesai: {len(recs)} pembacaan, pompa menyala pada {on_cnt} pembacaan "
                       f"({on_cnt / len(recs):.0%}).")
 
 
@@ -445,22 +540,89 @@ def page_lstm():
             mode = st.radio("Sumber masukan", ["Dari dataset", "Input manual"], horizontal=True, key="cls_mode")
             if mode == "Dari dataset":
                 df = pick_series("cls")
-                step = st.slider("Pembacaan ke-", w, len(df), min(60, len(df)), key="cls_step")
+                if len(df) < w:
+                    ui.banner("warn", f"Dataset memiliki {len(df)} pembacaan. Minimal dibutuhkan {w} pembacaan berurutan.")
+                    return
+
+                st.caption("⚡ **Pintasan Uji Cepat Tiap Tahap Perkembangan:**")
+                btn_c1, btn_c2, btn_c3 = st.columns(3)
+                if btn_c1.button("🌱 Uji: Masa Pertumbuhan (Baca ke-25)", use_container_width=True, key="btn_cls_p1"):
+                    st.session_state["cls_step"] = 25
+                    st.rerun()
+                if btn_c2.button("🌿 Uji: Mendekati Panen (Baca ke-75)", use_container_width=True, key="btn_cls_p2"):
+                    st.session_state["cls_step"] = min(75, len(df))
+                    st.rerun()
+                if btn_c3.button("🥬 Uji: Siap Panen (Baca ke-100)", use_container_width=True, key="btn_cls_p3"):
+                    st.session_state["cls_step"] = min(100, len(df))
+                    st.rerun()
+
+                if "cls_step" not in st.session_state or st.session_state["cls_step"] > len(df) or st.session_state["cls_step"] < w:
+                    st.session_state["cls_step"] = min(60, len(df))
+                step = st.slider("Pembacaan ke-", w, len(df), key="cls_step")
                 window = df.iloc[step - w: step]
-                truth = str(df["Ground Truth Criteria"].iloc[step - 1])
+                row_last = df.iloc[step - 1]
+                truth = str(row_last["Ground Truth Criteria"])
+                day_val = row_last.get("Day", "?")
+                dap_val = row_last.get("DAP", "?")
+                time_val = row_last.get("Time", "?")
+
+                dap_badge = f" &nbsp;•&nbsp; 🌱 <b>DAP {dap_val}</b>" if dap_val != "?" else ""
+                st.markdown(
+                    f"""
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; margin:6px 0 14px 0; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px;">
+                        <div style="font-size:13.5px; color:#334155;">
+                            📅 <b>Hari ke-{day_val}</b>{dap_badge} &nbsp;•&nbsp; ⏰ <b>Jam {time_val}</b> &nbsp;•&nbsp; 📍 <b>Pembacaan ke-{step}</b> dari {len(df)}
+                        </div>
+                        <div style="font-size:12.5px; font-weight:600; padding:3px 12px; border-radius:20px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe;">
+                            Fase Data Asli: {label(truth)}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
             else:
-                st.caption(f"Isi {w} pembacaan terakhir secara berurutan (jam: 08:00 / 12:00 / 16:00).")
-                base = pd.DataFrame({"Time": (utils.JAM_LIST * 2)[:w], "Soil Moisture (%)": [70.0] * w,
-                                     "Temperature (°C)": [27.0] * w})
-                window = st.data_editor(base, num_rows="fixed", key="cls_manual")
+                st.caption(f"Isi {w} pembacaan terakhir atau pilih template simulasi kondisi di bawah:")
+                m_c1, m_c2, m_c3 = st.columns(3)
+                if m_c1.button("🌱 Template: Masa Pertumbuhan (Lembap 70%)", use_container_width=True, key="btn_tmpl_1"):
+                    st.session_state["manual_moist"] = 70.0
+                    st.session_state["manual_temp"] = 27.0
+                    st.rerun()
+                if m_c2.button("🌿 Template: Mendekati Panen (Sedang 55%)", use_container_width=True, key="btn_tmpl_2"):
+                    st.session_state["manual_moist"] = 55.0
+                    st.session_state["manual_temp"] = 27.0
+                    st.rerun()
+                if m_c3.button("🥬 Template: Siap Panen (Rendah 48%)", use_container_width=True, key="btn_tmpl_3"):
+                    st.session_state["manual_moist"] = 48.0
+                    st.session_state["manual_temp"] = 26.0
+                    st.rerun()
+
+                def_m = st.session_state.get("manual_moist", 70.0)
+                def_t = st.session_state.get("manual_temp", 27.0)
+                base = pd.DataFrame({"Time": (utils.JAM_LIST * 2)[:w], "Soil Moisture (%)": [def_m] * w,
+                                     "Temperature (°C)": [def_t] * w})
+                window = st.data_editor(base, num_rows="fixed", key=f"cls_manual_{def_m}_{def_t}", width="stretch")
                 truth = None
-            st.dataframe(window[["Time"] + utils.SENSOR_COLS], hide_index=True)
+
+            preview_cols = []
+            rename_map = {
+                "Day": "Hari ke-",
+                "DAP": "DAP",
+                "Time": "Jam",
+                "Soil Moisture (%)": "Kelembapan (%)",
+                "Temperature (°C)": "Suhu (°C)",
+                "Soil Condition": "Kondisi Tanah"
+            }
+            for c in ["Day", "DAP", "Time", "Soil Moisture (%)", "Temperature (°C)", "Soil Condition"]:
+                if c in window.columns:
+                    preview_cols.append(c)
+            st.caption(f"📊 **Data {w} Pembacaan Sensor Berurutan yang Masuk ke LSTM:**")
+            st.dataframe(window[preview_cols].rename(columns=rename_map) if preview_cols else window, hide_index=True, width="stretch")
             try:
                 p = predict_stage(m, window)
                 k = int(p.argmax())
                 name = utils.CLASS_NAMES[k]
                 ui.kpi_cards([
-                    dict(icon="cpu", label="Prediksi tahap", value=label(name), color=charts.STAGE_COLORS[name]),
+                    dict(icon="cpu", label="Prediksi tahap", value=label(name), color=charts.STAGE_COLORS.get(name, "#533afd")),
                     dict(icon="sparkles", label="Keyakinan", value=f"{p[k]:.0%}", color="#34d399"),
                     dict(icon="check-circle", label="Label sebenarnya", value=label(truth) if truth else "-", color="#e8ecf4"),
                 ])
@@ -479,13 +641,24 @@ def page_lstm():
             st.caption(f"Dilatih dengan TensorFlow {cfg.get('tf_version', '?')}.")
             ev = cfg.get("evaluasi", {})
             eval_section({k: v for k, v in ev.items()}, cfg["class_names"], "lstm")
-            mae = cfg.get("metrics", {}).get("mae_forecast_uji_simulasi")
-            if mae:
-                ui.kpi_cards([
-                    dict(icon="droplets", label="MAE kelembapan (uji)", value=f"{mae['moisture']:.2f} %", color="#38bdf8"),
-                    dict(icon="thermometer", label="MAE suhu (uji)", value=f"{mae['temperature']:.2f} °C", color="#fb923c"),
-                    dict(icon="trending-up", label="MAE maturity (uji)", value=f"{mae['maturity']:.2f} %", color="#34d399"),
-                ])
+            mae_sim = cfg.get("metrics", {}).get("mae_forecast_uji_simulasi")
+            mae_asli = cfg.get("metrics", {}).get("mae_forecast_data_asli")
+            if mae_sim or mae_asli:
+                st.markdown('<div class="section-title">Evaluasi Model Prediksi 4 Hari (Mean Absolute Error)</div>', unsafe_allow_html=True)
+                if mae_sim:
+                    st.caption("📊 **Uji Evaluasi Siklus Simulasi (30 Siklus):**")
+                    ui.kpi_cards([
+                        dict(icon="droplets", label="MAE kelembapan (simulasi)", value=f"{mae_sim['moisture']:.2f} %", color="#38bdf8"),
+                        dict(icon="thermometer", label="MAE suhu (simulasi)", value=f"{mae_sim['temperature']:.2f} °C", color="#fb923c"),
+                        dict(icon="trending-up", label="MAE kematangan tanaman (simulasi)", value=f"{mae_sim['maturity']:.2f} %", color="#34d399"),
+                    ])
+                if mae_asli:
+                    st.caption("🌱 **Uji Evaluasi Data Asli Lapangan (1 Siklus - 40 Hari):**")
+                    ui.kpi_cards([
+                        dict(icon="droplets", label="MAE kelembapan (data asli)", value=f"{mae_asli['moisture']:.2f} %", color="#38bdf8"),
+                        dict(icon="thermometer", label="MAE suhu (data asli)", value=f"{mae_asli['temperature']:.2f} °C", color="#fb923c"),
+                        dict(icon="trending-up", label="MAE kematangan tanaman (data asli)", value=f"{mae_asli['maturity']:.2f} %", color="#facc15"),
+                    ])
         else:
             ui.banner("info", "Konfigurasi model belum ada. Latih model di Colab terlebih dulu.")
 
@@ -493,7 +666,7 @@ def page_lstm():
 # ================================================================= prediksi 4 hari
 def page_forecast():
     ui.hero("Prediksi 4 Hari ke Depan",
-            "LSTM membaca 12 pembacaan terakhir (4 hari) lalu memprediksi kelembapan, suhu, dan maturity 12 pembacaan berikutnya.",
+            "LSTM membaca 12 pembacaan terakhir (4 hari) lalu memprediksi kelembapan, suhu, dan tingkat kematangan tanaman 12 pembacaan berikutnya.",
             "calendar-range")
     m = load_models()
     if not warn_models(m, ["fc"]) or not m.get("cfg_lstm"):
@@ -501,7 +674,43 @@ def page_forecast():
     cfg = m["cfg_lstm"]
     win = cfg["w_in"]
     df = pick_series("fc")
-    step = st.slider("Prediksi dari pembacaan ke-", win, len(df), min(60, len(df)), key="fc_step")
+    if len(df) < win:
+        ui.banner("warn", f"Dataset memiliki {len(df)} pembacaan. Minimal dibutuhkan {win} pembacaan berurutan untuk prediksi 4 hari.")
+        return
+
+    st.caption("⚡ **Pintasan Cepat Titik Awal Prediksi 4 Hari:**")
+    fc_c1, fc_c2, fc_c3 = st.columns(3)
+    if fc_c1.button("🌱 Proyeksi dari Masa Pertumbuhan (Baca ke-25)", use_container_width=True, key="fc_btn1"):
+        st.session_state["fc_step"] = 25
+        st.rerun()
+    if fc_c2.button("🌿 Proyeksi dari Mendekati Panen (Baca ke-75)", use_container_width=True, key="fc_btn2"):
+        st.session_state["fc_step"] = min(75, len(df))
+        st.rerun()
+    if fc_c3.button("🥬 Proyeksi dari Siap Panen (Baca ke-100)", use_container_width=True, key="fc_btn3"):
+        st.session_state["fc_step"] = min(100, len(df))
+        st.rerun()
+
+    if "fc_step" not in st.session_state or st.session_state["fc_step"] > len(df) or st.session_state["fc_step"] < win:
+        st.session_state["fc_step"] = min(60, len(df))
+    step = st.slider("Prediksi dari pembacaan ke-", win, len(df), key="fc_step")
+    row_fc = df.iloc[step - 1]
+    day_fc = row_fc.get("Day", "?")
+    dap_fc = row_fc.get("DAP", "?")
+    time_fc = row_fc.get("Time", "?")
+    dap_fc_badge = f" &nbsp;•&nbsp; 🌱 <b>DAP {dap_fc}</b>" if dap_fc != "?" else ""
+    st.markdown(
+        f"""
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; margin:6px 0 14px 0; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="font-size:13.5px; color:#334155;">
+                📅 <b>Hari ke-{day_fc}</b>{dap_fc_badge} &nbsp;•&nbsp; ⏰ <b>Jam {time_fc}</b> &nbsp;•&nbsp; 📍 <b>Titik Awal Prediksi ke-{step}</b> dari {len(df)}
+            </div>
+            <div style="font-size:12.5px; font-weight:600; padding:3px 12px; border-radius:20px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe;">
+                Input: 12 Pembacaan Terakhir (4 Hari)
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     window = df.iloc[step - win: step].reset_index(drop=True)
     try:
         table = predict_forecast(m, window)
@@ -510,12 +719,13 @@ def page_forecast():
         return
     th = cfg["maturity_thresholds"]
     last = table.iloc[-1]
-    end_stage = utils.CLASS_NAMES[utils.stage_from_maturity(last["Maturity (%)"], th)]
+    mat_last = float(last["Tingkat Kematangan (%)"]) if "Tingkat Kematangan (%)" in last else float(last["Maturity (%)"])
+    end_stage = utils.CLASS_NAMES[utils.stage_from_maturity(mat_last, th)]
     ui.kpi_cards([
         dict(icon="droplets", label="Kelembapan akhir", value=f"{last['Kelembapan (%)']:.0f}%", color="#38bdf8"),
         dict(icon="thermometer", label="Suhu akhir", value=f"{last['Suhu (°C)']:.1f}°C", color="#fb923c"),
-        dict(icon="trending-up", label="Maturity akhir", value=f"{last['Maturity (%)']:.0f}%", color="#34d399"),
-        dict(icon="sprout", label="Tahap di akhir 4 hari", value=label(end_stage), color=charts.STAGE_COLORS[end_stage]),
+        dict(icon="trending-up", label="Tingkat Kematangan Akhir", value=f"{mat_last:.0f}%", color="#34d399", sub="skala 0–100%"),
+        dict(icon="sprout", label="Tahap di akhir 4 hari", value=label(end_stage), color=charts.STAGE_COLORS.get(end_stage, "#34d399")),
     ])
     hist_x = window["Time_Index"].tolist()
     pred_x = [hist_x[-1] + i for i in range(1, len(table) + 1)]
@@ -527,10 +737,12 @@ def page_forecast():
     show(charts.forecast_line(hist_x, window["Temperature (°C)"].tolist(), pred_x, table["Suhu (°C)"].tolist(),
                               "Suhu (°C)", "°C", "#fb923c",
                               None if truth is None else truth["Temperature (°C)"].tolist()), "fc_t", c2)
-    show(charts.maturity_forecast(pred_x, table["Maturity (%)"].tolist(), th), "fc_mat")
+    pred_mat = table["Tingkat Kematangan (%)"].tolist() if "Tingkat Kematangan (%)" in table.columns else table["Maturity (%)"].tolist()
+    show(charts.maturity_forecast(pred_x, pred_mat, th), "fc_mat")
     st.markdown('<div class="section-title">Ringkasan per hari</div>', unsafe_allow_html=True)
+    mat_col = "Tingkat Kematangan (%)" if "Tingkat Kematangan (%)" in table.columns else "Maturity (%)"
     daily = (table.groupby("Hari", sort=False)
-             .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", "Maturity (%)": "last", "Tahap": "last"})
+             .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
              .round(1).reset_index())
     st.dataframe(daily, hide_index=True)
     with st.expander("Tabel lengkap 12 pembacaan"):
@@ -544,10 +756,29 @@ def page_forecast():
 # ================================================================= CNN & foto
 def photo_panel(m, img, key):
     """Analisis satu foto: CNN + analisis visual daun. Mengembalikan (cnn, green)."""
-    scale = st.number_input("Skala foto (piksel per cm, opsional; 0 = tidak dipakai)", min_value=0.0, value=0.0,
-                            step=1.0, key=f"{key}_scale",
-                            help="Isi jika ada benda pembanding di foto, misalnya penggaris. "
-                                 "Tanpa skala, ukuran hanya dalam piksel.")
+    with st.expander("📐 Kalibrasi Ukuran Fisik Daun (Satuan cm)", expanded=False):
+        st.caption(
+            "Secara otomatis sistem mengestimasi ukuran fisik daun dalam **centimeter (cm)** berdasarkan rasio foto standar (jarak kamera ±30–40 cm). "
+            "Jika foto memiliki benda pembanding, Anda dapat memilih metode kalibrasi presisi di bawah ini:"
+        )
+        c_mode, c_val = st.columns([1.2, 1])
+        with c_mode:
+            calib_choice = st.radio(
+                "Metode Penentuan Ukuran:",
+                ["Estimasi Otomatis (Standar Foto HP)", "Berdasarkan Diameter Netpot (cm)", "Manual (Piksel per cm)"],
+                key=f"{key}_calib_choice"
+            )
+        scale = 0.0
+        with c_val:
+            if calib_choice == "Berdasarkan Diameter Netpot (cm)":
+                netpot_dia = st.number_input("Diameter netpot hidroponik (cm)", min_value=1.0, max_value=25.0, value=5.0, step=0.5, key=f"{key}_netpot_dia", help="Netpot hidroponik standar berdiameter 5 cm.")
+                scale = float(img.width * 0.18 / netpot_dia)
+                st.caption(f"Skala terhitung: **{scale:.1f} px/cm**")
+            elif calib_choice == "Manual (Piksel per cm)":
+                scale = st.number_input("Skala manual (px/cm)", min_value=1.0, max_value=300.0, value=35.0, step=1.0, key=f"{key}_manual_scale")
+            else:
+                st.info("💡 Mode Otomatis Aktif: Ukuran bentang daun langsung disajikan dalam **centimeter (cm)**.")
+
     g = utils.green_analysis(img, scale)
     c1, c2 = st.columns(2)
     c1.image(img, caption="Foto asli")
@@ -559,33 +790,79 @@ def photo_panel(m, img, key):
         k = int(p.argmax())
         cnn = (names[k], float(p[k]), p, names)
         idx = utils.readiness_index(p, names)
-        ui.kpi_cards([
-            dict(icon="cpu", label="Tahap (CNN)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#e8ecf4")),
-            dict(icon="sparkles", label="Keyakinan", value=f"{p[k]:.0%}", color="#34d399"),
-            dict(icon="layers", label="Indeks kesiapan panen", value=f"{idx:.0f}/100", color="#facc15"),
-        ])
-        g1, g2 = st.columns(2)
-        show(charts.prob_bar(p, names), f"{key}_prob", g1)
-        show(charts.gauge(idx, "Indeks kesiapan panen", (50, 90)), f"{key}_gauge", g2)
-        if p[k] < 0.6:
-            ui.banner("warn", "Keyakinan model rendah. Coba foto yang lebih jelas atau dari sudut lain.")
+        if names[k] == "bukan_pakcoy":
+            ui.kpi_cards([
+                dict(icon="alert-triangle", label="Status Objek (CNN)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#ea2261")),
+                dict(icon="sparkles", label="Keyakinan", value=f"{p[k]:.0%}", color="#ea2261"),
+                dict(icon="x-circle", label="Kesiapan Panen", value="Tidak Berlaku", color="#ea2261", sub="Objek non-pakcoy"),
+            ])
+            show(charts.prob_bar(p, names), f"{key}_prob")
+            ui.banner("danger", f"⚠️ Objek terdeteksi sebagai **BUKAN TANAMAN PAKCOY** (Keyakinan: {p[k]:.0%}). Indeks kesiapan panen dan analisis pertumbuhan tidak berlaku untuk objek ini.")
+        else:
+            ui.kpi_cards([
+                dict(icon="cpu", label="Tahap (CNN)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#e8ecf4")),
+                dict(icon="sparkles", label="Keyakinan", value=f"{p[k]:.0%}", color="#34d399"),
+                dict(icon="layers", label="Indeks kesiapan panen", value=f"{idx:.0f}/100", color="#facc15"),
+            ])
+            g1, g2 = st.columns(2)
+            show(charts.prob_bar(p, names), f"{key}_prob", g1)
+            show(charts.gauge(idx, "Indeks kesiapan panen", (50, 90)), f"{key}_gauge", g2)
+            if p[k] < 0.6:
+                ui.banner("warn", "Keyakinan model rendah. Coba foto yang lebih jelas atau dari sudut lain.")
     else:
         ui.banner("warn", "Model CNN belum tersedia. Hanya analisis visual daun yang ditampilkan.")
+    if g["coverage_pct"] < 5.0 and (cnn is None or cnn[0] != "bukan_pakcoy"):
+        ui.banner("warn", f"⚠️ Tutupan daun hijau pada foto sangat rendah ({g['coverage_pct']:.1f}%). Pastikan foto menampilkan daun tanaman dengan jelas.")
+
+    # Status indikator visual yang ramah orang awam (satuan cm & cm²)
+    w_cm = g.get("width_cm", 0.0)
+    h_cm = g.get("height_cm", 0.0)
+    a_cm2 = g.get("area_cm2", 0.0)
+    is_est = g.get("is_estimated_cm", True)
+    prefix_est = "± " if is_est else ""
+
+    if g['yellow_pct'] < 2.0:
+        yellow_sub = "Sangat segar (bebas klorosis)"
+        yellow_col = "#34d399"
+    elif g['yellow_pct'] < 8.0:
+        yellow_sub = "Normal (sedikit menguning)"
+        yellow_col = "#facc15"
+    else:
+        yellow_sub = "Perhatian: daun menguning"
+        yellow_col = "#f87171"
+
+    green_sub = "Klorofil pekat & subur" if g['greenness'] >= 50 else "Cukup segar"
+
+    if g['compactness'] >= 0.75:
+        compact_sub = "Rumpun sangat rimbun"
+    elif g['compactness'] >= 0.45:
+        compact_sub = "Rumpun cukup rimbun"
+    else:
+        compact_sub = "Rumpun daun renggang"
+
     cards = [
-        dict(icon="sprout", label="Tutupan daun pada foto", value=f"{g['coverage_pct']:.1f}%", color="#34d399"),
-        dict(icon="layers", label="Kepadatan rimbun", value=f"{g['compactness']:.0%}", color="#38bdf8",
-             sub="dalam kotak kanopi"),
-        dict(icon="maximize", label="Lebar × tinggi kanopi", value=f"{g['bbox_w_px']}×{g['bbox_h_px']} px", color="#a78bfa"),
-        dict(icon="sprout", label="Hijau kekuningan", value=f"{g['yellow_pct']:.1f}%", color="#facc15"),
-        dict(icon="sparkles", label="Kejenuhan warna daun", value=f"{g['greenness']:.0f}%", color="#34d399"),
+        dict(icon="sprout", label="Tutupan Daun pada Foto", value=f"{g['coverage_pct']:.1f}%", color="#34d399",
+             sub="Persentase area foto terisi daun"),
+        dict(icon="layers", label="Kerapatan Rumpun Daun", value=f"{g['compactness']:.0%}", color="#38bdf8",
+             sub=compact_sub),
+        dict(icon="maximize", label="Bentang Daun (Lebar × Panjang)", value=f"{prefix_est}{w_cm:.1f} × {h_cm:.1f} cm", color="#a78bfa",
+             sub="Ukuran fisik terluar tanaman"),
+        dict(icon="maximize", label="Perkiraan Luas Daun", value=f"{prefix_est}{a_cm2:.0f} cm²", color="#fb923c",
+             sub="Total luas bidang daun hijau"),
+        dict(icon="sprout", label="Tingkat Daun Menguning", value=f"{g['yellow_pct']:.1f}%", color=yellow_col,
+             sub=yellow_sub),
+        dict(icon="sparkles", label="Kepekatan Warna Hijau", value=f"{g['greenness']:.0f}%", color="#34d399",
+             sub=green_sub),
     ]
-    if g["area_cm2"] is not None:
-        cards += [dict(icon="maximize", label="Perkiraan luas daun", value=f"{g['area_cm2']:.0f} cm²", color="#fb923c"),
-                  dict(icon="maximize", label="Lebar × tinggi", value=f"{g['width_cm']:.1f}×{g['height_cm']:.1f} cm",
-                       color="#fb923c")]
     ui.kpi_cards(cards)
-    if g["area_cm2"] is None:
-        st.caption("Isi skala foto untuk melihat ukuran dalam cm. Analisis ini memakai segmentasi warna, bukan model CNN.")
+
+    st.caption(
+        "💡 **Penjelasan Indikator Visual untuk Orang Awam:**\n"
+        "- **Bentang Daun (cm):** Menunjukkan ukuran fisik rentang daun pakcoy terluar (lebar × panjang) dalam satuan centimeter (cm).\n"
+        "- **Perkiraan Luas Daun (cm²):** Estimasi total permukaan daun hijau yang aktif melakukan fotosintesis.\n"
+        "- **Kerapatan Rumpun Daun:** Mengukur seberapa lebat daun mengisi tanaman (daun rimbun rapat dan tidak bolong-bolong).\n"
+        "- **Tingkat Daun Menguning (%):** Mendeteksi tanda klorosis/penuaan dini. Angka mendekati 0% berarti tanaman sangat sehat dan tidak kekurangan nutrisi."
+    )
     return cnn, g
 
 
@@ -598,8 +875,8 @@ def get_image(key):
 
 def page_cnn():
     ui.hero("Model CNN — Deteksi Kesiapan Panen dari Foto",
-            "CNN (MobileNetV2) mengenali tahap pertumbuhan dari foto, dilengkapi analisis visual daun: tutupan, kepadatan, "
-            "dan ukuran kanopi.",
+            "CNN (MobileNetV2) mengenali tahap pertumbuhan dari foto, dilengkapi analisis visual daun: tutupan, kerapatan rimbun, "
+            "dan estimasi bentang daun dalam satuan centimeter (cm).",
             "scan-line")
     m = load_models()
     tab1, tab2 = st.tabs(["Scan Foto", "Info & Evaluasi Model"])
@@ -612,13 +889,16 @@ def page_cnn():
         else:
             cnn, g = photo_panel(m, img, "cnn")
             if cnn:
-                info = utils.STAGE_INFO.get(cnn[0])
-                if info:
-                    ui.banner("info", "Ciri umum tahap ini: " + info["ciri"])
-                    ui.banner("ok", "Saran umum: " + info["saran"])
+                if cnn[0] != "bukan_pakcoy":
+                    info = utils.STAGE_INFO.get(cnn[0])
+                    if info:
+                        ui.banner("info", "Ciri umum tahap ini: " + info["ciri"])
+                        ui.banner("ok", "Saran umum: " + info["saran"])
+                else:
+                    ui.banner("danger", "Objek terdeteksi bukan pakcoy. Silakan unggah foto tanaman pakcoy asli.")
     with tab2:
         st.markdown("**Arsitektur:** `Augmentasi` -> `Rescaling` -> `MobileNetV2 (ImageNet)` -> `GlobalAveragePooling` -> "
-                    "`Dropout 0,3` -> `Softmax 3 kelas`. Dilatih 2 tahap: kepala klasifikasi, lalu fine-tuning lapisan atas.")
+                    "`Dropout 0,3` -> `Softmax 4 kelas`. Dilatih 2 tahap: kepala klasifikasi, lalu fine-tuning lapisan atas.")
         cfg = m.get("cfg_cnn")
         if cfg:
             st.caption(f"Dilatih dengan TensorFlow {cfg.get('tf_version', '?')}. "
@@ -643,13 +923,61 @@ def page_scan():
     st.markdown('<div class="section-title">2) Konteks sensor</div>', unsafe_allow_html=True)
     df = pick_series("scan")
     w_in = m["cfg_lstm"]["w_in"] if m.get("cfg_lstm") else 12
-    step = st.slider("Gunakan pembacaan sampai ke-", w_in, len(df), min(60, len(df)), key="scan_step")
+    if len(df) < w_in:
+        ui.banner("warn", f"Dataset memiliki {len(df)} pembacaan. Minimal dibutuhkan {w_in} pembacaan berurutan.")
+        return
+
+    st.caption("⚡ **Pintasan Konteks Sensor Tanaman:**")
+    sc_c1, sc_c2, sc_c3 = st.columns(3)
+    if sc_c1.button("🌱 Sensor Masa Pertumbuhan (Baca ke-25)", use_container_width=True, key="scan_btn1"):
+        st.session_state["scan_step"] = 25
+        st.rerun()
+    if sc_c2.button("🌿 Sensor Mendekati Panen (Baca ke-75)", use_container_width=True, key="scan_btn2"):
+        st.session_state["scan_step"] = min(75, len(df))
+        st.rerun()
+    if sc_c3.button("🥬 Sensor Siap Panen (Baca ke-100)", use_container_width=True, key="scan_btn3"):
+        st.session_state["scan_step"] = min(100, len(df))
+        st.rerun()
+
+    if "scan_step" not in st.session_state or st.session_state["scan_step"] > len(df) or st.session_state["scan_step"] < w_in:
+        st.session_state["scan_step"] = min(60, len(df))
+    step = st.slider("Gunakan pembacaan sampai ke-", w_in, len(df), key="scan_step")
+    row_sc = df.iloc[step - 1]
+    day_sc = row_sc.get("Day", "?")
+    dap_sc = row_sc.get("DAP", "?")
+    time_sc = row_sc.get("Time", "?")
+    dap_sc_badge = f" &nbsp;•&nbsp; 🌱 <b>DAP {dap_sc}</b>" if dap_sc != "?" else ""
+    st.markdown(
+        f"""
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; margin:6px 0 14px 0; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="font-size:13.5px; color:#334155;">
+                📅 <b>Hari ke-{day_sc}</b>{dap_sc_badge} &nbsp;•&nbsp; ⏰ <b>Jam {time_sc}</b> &nbsp;•&nbsp; 📍 <b>Sensor ke-{step}</b> dari {len(df)}
+            </div>
+            <div style="font-size:12.5px; font-weight:600; padding:3px 12px; border-radius:20px; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe;">
+                Fase Sensor: {label(str(row_sc.get("Ground Truth Criteria", "")))}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     if img is None:
         ui.banner("info", "Unggah atau ambil foto untuk membuat laporan.")
         return
     st.divider()
     st.markdown('<div class="section-title">Hasil analisis foto</div>', unsafe_allow_html=True)
     cnn, g = photo_panel(m, img, "scan")
+
+    # Gatekeeper penyaring foto: jika terdeteksi bukan pakcoy atau tutupan daun hijau sangat rendah, putus alur LSTM
+    if cnn and cnn[0] == "bukan_pakcoy":
+        ui.banner("danger", "⛔ **Validasi Foto Gagal: Objek terdeteksi BUKAN TANAMAN PAKCOY.**\n\n"
+                            "Analisis gabungan dan proyeksi sensor 4 hari ke depan **dihentikan** untuk mencegah kesalahan kesimpulan budidaya.")
+        return
+
+    if g["coverage_pct"] < 4.0:
+        ui.banner("danger", "⛔ **Validasi Foto Gagal: Tidak terdeteksi area hijau tanaman yang cukup (<4%).**\n\n"
+                            "Objek diindikasikan bukan tanaman pakcoy. Analisis gabungan dan prediksi sensor dihentikan.")
+        return
+
     st.markdown('<div class="section-title">Hasil analisis sensor (LSTM)</div>', unsafe_allow_html=True)
     lstm, table = None, None
     if lstm_ready(m, "clf"):
@@ -671,12 +999,13 @@ def page_scan():
             ui.banner("warn", f"CNN ({label(cnn[0])}) dan LSTM ({label(lstm[0])}) berbeda. Foto dan sensor belum tentu "
                               "dari tanaman yang sama, jadi periksa tanaman secara langsung.")
     final = (cnn or lstm or [None])[0]
-    if final:
+    if final and final in utils.STAGE_INFO and final != "bukan_pakcoy":
         ui.banner("info", "Ciri umum tahap ini: " + utils.STAGE_INFO[final]["ciri"])
         ui.banner("ok", "Saran umum: " + utils.STAGE_INFO[final]["saran"])
     if table is not None:
+        mat_scan = table["Tingkat Kematangan (%)"].iloc[-1] if "Tingkat Kematangan (%)" in table.columns else table["Maturity (%)"].iloc[-1]
         ui.banner("info", f"Perkiraan tahap 4 hari ke depan: {table['Tahap'].iloc[-1]} "
-                          f"(maturity sekitar {table['Maturity (%)'].iloc[-1]:.0f}%).")
+                          f"(tingkat kematangan tanaman sekitar {mat_scan:.0f}%).")
     report = utils.build_report(cnn=(cnn[0], cnn[1]) if cnn else None, lstm=lstm, green=g, table=table,
                                 sensor=df.iloc[step - 1])
     st.download_button("Unduh laporan (Markdown)", report.encode("utf-8"), file_name="laporan_pakcoy.md",

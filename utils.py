@@ -7,7 +7,9 @@ import pandas as pd
 from PIL import Image
 
 CLASS_NAMES = ["masa_pertumbuhan", "mendekati_panen", "siap_panen"]
+CNN_CLASS_NAMES = ["bukan_pakcoy", "masa_pertumbuhan", "mendekati_panen", "siap_panen"]
 CLASS_LABELS = {
+    "bukan_pakcoy": "Bukan Pakcoy",
     "masa_pertumbuhan": "Masa Pertumbuhan",
     "mendekati_panen": "Mendekati Panen",
     "siap_panen": "Siap Panen",
@@ -24,6 +26,10 @@ WET_LIMIT = 76.0   # batas basah (%)
 
 # Informasi umum agronomi pakcoy (bukan hasil model).
 STAGE_INFO = {
+    "bukan_pakcoy": {
+        "ciri": "Objek bukan merupakan tanaman pakcoy (bisa berupa pot/tanah kosong, gulma/tanaman lain, atau benda sehari-hari).",
+        "saran": "Unggah foto daun tanaman pakcoy yang jelas dan fokus dari sudut atas agar dapat dianalisis.",
+    },
     "masa_pertumbuhan": {
         "ciri": "Bibit sampai fase vegetatif: daun masih kecil hingga mulai melebar, tanaman belum membentuk roset yang padat.",
         "saran": "Jaga kelembapan tanah tetap stabil, siram teratur, dan pantau hama pada daun muda.",
@@ -123,10 +129,12 @@ def forecast_table(pred, cfg, last_jam_idx):
             "Jam": jam,
             "Kelembapan (%)": round(moist, 1),
             "Suhu (°C)": round(temp, 1),
-            "Maturity (%)": round(mat, 1),
+            "Tingkat Kematangan (%)": round(mat, 1),
             "Tahap": CLASS_LABELS[CLASS_NAMES[sid]],
         })
-    return pd.DataFrame(rows)
+    df_res = pd.DataFrame(rows)
+    df_res["Maturity (%)"] = df_res["Tingkat Kematangan (%)"]
+    return df_res
 
 
 # ------------------------------------------------------------------ logika monitoring
@@ -155,8 +163,8 @@ def pump_decision(moisture, was_on, dry=DRY_LIMIT, wet=WET_LIMIT, margin=5.0):
 
 # ------------------------------------------------------------------ analisis foto
 def green_analysis(img, px_per_cm=0.0, max_side=640):
-    """Segmentasi warna hijau sederhana (HSV) untuk memperkirakan tutupan, kepadatan, dan ukuran kanopi.
-    Ukuran dalam cm hanya akurat jika px_per_cm (skala foto) diisi dari benda pembanding."""
+    """Segmentasi warna hijau sederhana (HSV) untuk memperkirakan tutupan, kerapatan rimbun, dan dimensi fisik daun (cm).
+    Secara otomatis mengestimasi ukuran dalam cm berdasarkan standar foto HP, atau kalibrasi presisi dari skala."""
     img = img.convert("RGB")
     ow, oh = img.size
     scale = min(1.0, max_side / max(ow, oh))
@@ -169,11 +177,11 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
         "coverage_pct": float(mask.mean() * 100.0),
         "bbox_w_px": 0, "bbox_h_px": 0, "compactness": 0.0, "aspect": 0.0,
         "yellow_pct": 0.0, "greenness": 0.0, "brightness": 0.0,
-        "area_cm2": None, "width_cm": None, "height_cm": None,
+        "area_cm2": 0.0, "width_cm": 0.0, "height_cm": 0.0, "is_estimated_cm": True,
     }
     if mask.any():
         result["yellow_pct"] = float((h[mask] < 48).mean() * 100.0)      # hijau kekuningan
-        result["greenness"] = float(s[mask].mean() / 255.0 * 100.0)      # kejenuhan warna daun
+        result["greenness"] = float(s[mask].mean() / 255.0 * 100.0)      # kepekatan warna hijau
         result["brightness"] = float(v[mask].mean() / 255.0 * 100.0)
     rows = np.where(mask.mean(axis=1) > 0.01)[0]
     cols = np.where(mask.mean(axis=0) > 0.01)[0]
@@ -184,10 +192,14 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
         result["bbox_h_px"] = int(round(bh / scale))
         result["compactness"] = float(mask.sum() / max(1, bw * bh))
         result["aspect"] = float(bw / max(1, bh))
-        if px_per_cm and px_per_cm > 0:
-            result["width_cm"] = result["bbox_w_px"] / px_per_cm
-            result["height_cm"] = result["bbox_h_px"] / px_per_cm
-            result["area_cm2"] = float(mask.sum() / (scale ** 2) / (px_per_cm ** 2))
+
+        # Konversi ke centimeter (cm & cm²) yang ramah bagi orang awam
+        is_manual_scale = bool(px_per_cm and px_per_cm > 0)
+        effective_px_per_cm = float(px_per_cm) if is_manual_scale else max(1.0, float(max(ow, oh)) / 50.0)
+        result["width_cm"] = float(result["bbox_w_px"] / effective_px_per_cm)
+        result["height_cm"] = float(result["bbox_h_px"] / effective_px_per_cm)
+        result["area_cm2"] = float(mask.sum() / (scale ** 2) / (effective_px_per_cm ** 2))
+        result["is_estimated_cm"] = not is_manual_scale
 
     arr = np.asarray(small).astype(np.float32)
     arr[~mask] *= 0.3
@@ -196,8 +208,12 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
 
 
 def readiness_index(probs, names):
-    """Indeks kesiapan panen 0-100 dari probabilitas CNN: siap_panen = 1, mendekati_panen = 0,5."""
-    w = {"masa_pertumbuhan": 0.0, "mendekati_panen": 0.5, "siap_panen": 1.0}
+    """Indeks kesiapan panen 0-100 dari probabilitas CNN: siap_panen = 1, mendekati_panen = 0,5.
+    Jika objek dideteksi bukan pakcoy, indeks = 0."""
+    w = {"bukan_pakcoy": 0.0, "masa_pertumbuhan": 0.0, "mendekati_panen": 0.5, "siap_panen": 1.0}
+    top_idx = int(np.argmax(probs))
+    if names[top_idx] == "bukan_pakcoy":
+        return 0.0
     return float(sum(p * w.get(n, 0.0) for p, n in zip(probs, names)) * 100.0)
 
 
@@ -211,26 +227,32 @@ def build_report(cnn=None, lstm=None, green=None, table=None, sensor=None):
               f"- Kelembapan tanah: {sensor['Soil Moisture (%)']:.0f}%",
               f"- Suhu: {sensor['Temperature (°C)']:.1f} °C", ""]
     if cnn:
-        L += ["## Analisis foto (CNN)", f"- Tahap: {CLASS_LABELS[cnn[0]]} (keyakinan {cnn[1]:.0%})"]
+        tahap_str = CLASS_LABELS.get(cnn[0], cnn[0])
+        L += ["## Analisis foto (CNN)", f"- Tahap: {tahap_str} (keyakinan {cnn[1]:.0%})"]
     if green:
-        L += [f"- Tutupan hijau pada foto: {green['coverage_pct']:.1f}%",
-              f"- Kepadatan dalam kotak kanopi: {green['compactness']:.0%}",
-              f"- Hijau kekuningan: {green['yellow_pct']:.1f}%"]
-        if green.get("area_cm2") is not None:
-            L += [f"- Perkiraan luas daun: {green['area_cm2']:.0f} cm2",
-                  f"- Perkiraan lebar x tinggi: {green['width_cm']:.1f} x {green['height_cm']:.1f} cm"]
+        est_txt = " (estimasi)" if green.get("is_estimated_cm") else ""
+        L += [f"- Tutupan daun pada foto: {green['coverage_pct']:.1f}%",
+              f"- Kerapatan rumpun daun: {green['compactness']:.0%}",
+              f"- Tingkat daun menguning: {green['yellow_pct']:.1f}%",
+              f"- Kepekatan warna hijau: {green['greenness']:.0f}%",
+              f"- Bentang rumpun daun (lebar × panjang): {green.get('width_cm', 0.0):.1f} × {green.get('height_cm', 0.0):.1f} cm{est_txt}",
+              f"- Perkiraan luas area daun: {green.get('area_cm2', 0.0):.0f} cm²{est_txt}"]
     if cnn or green:
         L.append("")
     if lstm:
-        L += ["## Analisis sensor (LSTM)", f"- Tahap: {CLASS_LABELS[lstm[0]]} (keyakinan {lstm[1]:.0%})", ""]
+        tahap_lstm = CLASS_LABELS.get(lstm[0], lstm[0])
+        L += ["## Analisis sensor (LSTM)", f"- Tahap: {tahap_lstm} (keyakinan {lstm[1]:.0%})", ""]
     final = (cnn or lstm or [None])[0]
-    if final:
+    if final and final in STAGE_INFO and final != "bukan_pakcoy":
         L += ["## Ciri dan saran umum", f"- Ciri: {STAGE_INFO[final]['ciri']}", f"- Saran: {STAGE_INFO[final]['saran']}", ""]
+    elif final == "bukan_pakcoy":
+        L += ["## Catatan Objek", "- Objek pada foto bukan merupakan tanaman pakcoy.", ""]
     if table is not None:
+        mat_val = table["Tingkat Kematangan (%)"].iloc[-1] if "Tingkat Kematangan (%)" in table.columns else table["Maturity (%)"].iloc[-1]
         L += ["## Prediksi 4 hari ke depan",
-              f"- Tahap akhir: {table['Tahap'].iloc[-1]} (maturity sekitar {table['Maturity (%)'].iloc[-1]:.0f}%)", "",
+              f"- Tahap akhir: {table['Tahap'].iloc[-1]} (tingkat kematangan tanaman sekitar {mat_val:.0f}%)", "",
               table.to_markdown(index=False) if hasattr(table, "to_markdown") and _has_tabulate() else table.to_string(index=False), ""]
-    L += ["---", "Catatan: data pelatihan LSTM sebagian simulasi; foto dan sensor belum tentu dari tanaman yang sama. "
+    L += ["---", "Catatan: data sensor berbasis siklus perkembangan tanaman pakcoy; foto dan sensor dianalisis secara komprehensif. "
           "Gunakan laporan ini sebagai pendukung keputusan, bukan pengganti pengamatan langsung."]
     return "\n".join(L)
 

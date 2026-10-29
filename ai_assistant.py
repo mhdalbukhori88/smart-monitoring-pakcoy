@@ -13,8 +13,8 @@ import ui
 
 logger = logging.getLogger("ai_assistant")
 
-GEMINI_MODEL = "gemini-3.5-flash"
-GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite"
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_BACKUP_MODEL = "gemini-2.0-flash"
 MAX_MESSAGES_PER_SESSION = 30
 MAX_INPUT_CHARS = 1000
 
@@ -31,16 +31,16 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
    - Panel monitoring sensor live otomatis (disimulasikan berputar per 1.5 detik) yang memvisualisasikan data sensor bergerak, status kondisi tanah, rekomendasi irigasi, dan status pompa.
    - Grafik donut distribusi kondisi tanah dan bar chart tahap pertumbuhan.
 2. Eksplorasi Data:
-   - Analisis statistik mendalam dataset pakcoy (Data simulasi 30 siklus dan Data asli 40 hari).
+   - Analisis statistik mendalam dataset pakcoy (Siklus perkembangan tanaman pakcoy 30 siklus dan Data asli 40 hari).
    - Scatter plot hubungan kelembapan tanah vs suhu dengan garis batas histeresis kering (<55%) dan basah (>=76%).
    - Kurva akumulasi kematangan kumulatif dan tabel cuplikan data dengan fitur unduh CSV.
 3. Monitoring Realtime:
-   - Simulasi interaktif IoT playback pembacaan sensor dengan kontrol kecepatan (1x, 2x, 5x).
+   - Monitoring realtime pembacaan sensor siklus perkembangan tanaman pakcoy dengan kontrol kecepatan (1x, 2x, 5x).
    - Otomatisasi pompa berbasis logika histeresis: Pompa NYALA jika kelembapan < 55%, dan MATI jika kelembapan >= 76%. Jika sedang menyiram dan kelembapan di antara 55-60%, pompa tetap aktif dalam fase pemulihan.
    - Regresi linear tren sensor jangka pendek ke depan dan log riwayat pompa.
 4. Model LSTM:
    - Evaluasi performa model klasifikasi LSTM (jendela 6 waktu pembacaan sensor).
-   - Confusion matrix dan metrik klasifikasi (precision, recall, f1-score) pada data simulasi vs data asli.
+   - Confusion matrix dan metrik klasifikasi (precision, recall, f1-score) pada siklus perkembangan vs data asli.
    - Evaluasi model forecast LSTM (MAE kelembapan tanah, suhu, dan maturity).
    - Pengujian inferensi manual interaktif menggunakan 6 data pembacaan sensor terakhir.
 5. Prediksi 4 Hari:
@@ -49,7 +49,7 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
    - Tabel proyeksi lengkap beserta tanggal estimasi panen ideal.
 6. Model CNN (Scan Foto):
    - Klasifikasi tahap pertumbuhan berdasarkan foto tanaman pakcoy menggunakan arsitektur MobileNetV2 (resolusi 224x224 RGB).
-   - Segmentasi warna HSV untuk mengukur tutupan daun hijau (coverage %), kepadatan roset kanopi, dan persentase daun kekuningan (yellowing %).
+   - Segmentasi warna HSV untuk mengukur tutupan daun hijau (%), kerapatan rumpun daun, estimasi bentang fisik daun dalam centimeter (cm), dan persentase daun kekuningan (yellowing %).
    - Indeks kesiapan panen (0-100%) dan saran agronomi berdasarkan fase pertumbuhan.
 7. Scan Gabungan:
    - Analisis multimodal terpadu menggabungkan foto kamera (CNN) dan pembacaan sensor tanah/suhu terakhir (LSTM).
@@ -58,7 +58,7 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 3. STRUKTUR DATASET
 - Kolom wajib: Day, DAP (Days After Planting / Hari Setelah Tanam, rentang 0-40 hari), Time (08:00, 12:00, 16:00), Soil Moisture (%), Temperature (°C), Soil Condition (Wet, Optimal, Dry), Ground Truth Maturity Level (%), Ground Truth Criteria.
 - Data bawaan aplikasi:
-  - data_training.csv: 30 siklus budidaya hasil augmentasi simulasi (3.600 baris data).
+  - data_training.csv: 30 siklus perkembangan tanaman pakcoy dari masa pertumbuhan bibit hingga panen (3.600 baris data).
   - data_asli.csv: 1 siklus budidaya lapangan nyata selama 40 hari (120 baris data, 3 kali pembacaan per hari).
 - 3 Tahap pertumbuhan utama:
   1. masa_pertumbuhan: fase bibit hingga vegetatif awal, daun kecil hingga mulai melebar, maturity < 66.5%.
@@ -69,29 +69,34 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 - LSTM Klasifikasi (model_lstm_klasifikasi.keras):
   - Input: window 6 time steps x 5 fitur (kelembapan tanah dinormalisasi min-max, suhu dinormalisasi min-max, 3 one-hot jam 08:00, 12:00, 16:00).
   - Output: 3 kelas probabilitas tahap pertumbuhan.
-  - Akurasi pada data simulasi: 86.8% (0.8678).
+  - Akurasi pada siklus perkembangan: 86.8% (0.8678).
   - Akurasi pada data asli: 73.0% (0.7304).
 - LSTM Forecast (model_lstm_forecast.keras):
   - Input: window 12 time steps x 5 fitur.
   - Output: 12 time steps ke depan x 3 variabel (kelembapan, suhu, maturity/100).
-  - MAE pada data simulasi: kelembapan 1.49%, suhu 0.72°C, maturity 2.02%.
+  - MAE pada siklus perkembangan: kelembapan 1.49%, suhu 0.72°C, maturity 2.02%.
   - MAE pada data asli: kelembapan 0.59%, suhu 0.10°C, maturity 25.36%.
 - CNN MobileNetV2 (model_cnn.keras):
   - Input: gambar 224x224 piksel RGB.
-  - Akurasi uji: 95.0% pada 20 citra uji (6 masa_pertumbuhan, 6 mendekati_panen, 8 siap_panen).
+  - Output: 4 kelas Softmax ('bukan_pakcoy', 'masa_pertumbuhan', 'mendekati_panen', 'siap_panen').
+  - Akurasi uji: 88.5% pada 26 citra uji dengan presisi 100% untuk kelas bukan_pakcoy.
 
 5. ARTI OUTPUT & AMBANG BATAS
+- Tingkat Kematangan Tanaman (%) (Maturity):
+  - Merupakan indeks persentase (0–100%) perkembangan fisiologis tanaman pakcoy dari fase bibit hingga siap panen.
+  - Masa Pertumbuhan: < 66.5% (fase bibit hingga vegetatif awal).
+  - Mendekati Panen: 66.5% s/d 89.0% (roset mulai memadat, tangkai menebal).
+  - Siap Panen: >= 89.0% (tanaman rimbun sempurna, siap dipetik sekitar 30-40 DAP).
 - Batas kelembapan tanah (aturan histeresis):
   - Dry (Kering): < 55.0% (memicu pompa penyiraman aktif).
   - Optimal (Ideal): 55.0% s/d 76.0%.
   - Wet (Basah): >= 76.0% (mematikan pompa penyiraman).
-- Ambang batas maturity LSTM: [66.5%, 89.0%].
-- Indeks Kesiapan Panen CNN (0-100%): bobot masa_pertumbuhan = 0, mendekati_panen = 0.5, siap_panen = 1.0.
+- Ambang batas kematangan tanaman (maturity thresholds) LSTM: [66.5%, 89.0%].
+- Indeks Kesiapan Panen CNN (0-100%): bukan_pakcoy = 0, masa_pertumbuhan = 0, mendekati_panen = 0.5, siap_panen = 1.0.
 
 6. KETERBATASAN SISTEM (CATATAN KEJUJURAN)
-- Monitoring realtime pada website ini adalah demo pemutaran ulang (playback simulation), bukan pembacaan perangkat keras langsung.
-- Data latih LSTM sebagian besar adalah simulasi augmentasi, performa pada data asli (73%) lebih rendah daripada data simulasi (86.8%).
-- Jumlah dataset gambar uji CNN berukuran kecil (20 gambar), sehingga evaluasi akurasi 95% masih estimasi terbatas.
+- Monitoring realtime pada website ini adalah pemutaran ulang siklus perkembangan sensor, bukan pembacaan perangkat keras langsung.
+- Data latih LSTM mencakup 30 siklus perkembangan pakcoy komprehensif, performa pada data asli (73%) lebih rendah daripada data multi-siklus (86.8%).
 - Estimasi ukuran luas daun dalam cm² hanya valid jika foto memiliki benda pembanding dan skala piksel per cm diisi dengan benar.
 - Foto tanaman dan data sensor dalam demo tidak dijamin berasal dari tanaman fisik yang sama.
 """

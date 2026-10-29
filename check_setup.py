@@ -24,7 +24,8 @@ if sys.version_info[:2] not in [(3, 10), (3, 11), (3, 12)]:
 # 1) paket
 mods = {}
 for name, pip in [("streamlit", "streamlit"), ("pandas", "pandas"), ("numpy", "numpy"), ("PIL", "pillow"),
-                  ("plotly", "plotly"), ("openpyxl", "openpyxl"), ("tensorflow", "tensorflow-cpu")]:
+                  ("plotly", "plotly"), ("openpyxl", "openpyxl"), ("tensorflow", "tensorflow-cpu"),
+                  ("google.genai", "google-genai")]:
     try:
         mods[name] = importlib.import_module(name)
         out("OK", f"{name} {getattr(mods[name], '__version__', '')}")
