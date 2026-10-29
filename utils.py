@@ -171,7 +171,8 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
     small = img.resize((max(1, int(ow * scale)), max(1, int(oh * scale))))
     hsv = np.asarray(small.convert("HSV")).astype(np.int16)
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
-    mask = (h >= 30) & (h <= 120) & (s >= 50) & (v >= 40)
+    # Mask daun tanaman: mencakup klorofil hijau dan daun menguning (klorosis), namun menolak warna kulit dan interior
+    mask = ((h >= 48) & (h <= 125) & (s >= 50) & (v >= 38)) | ((h >= 38) & (h < 48) & (s >= 70) & (v >= 50))
 
     result = {
         "coverage_pct": float(mask.mean() * 100.0),
@@ -180,7 +181,7 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
         "area_cm2": 0.0, "width_cm": 0.0, "height_cm": 0.0, "is_estimated_cm": True,
     }
     if mask.any():
-        result["yellow_pct"] = float((h[mask] < 48).mean() * 100.0)      # hijau kekuningan
+        result["yellow_pct"] = float((h[mask] < 50).mean() * 100.0)      # hijau kekuningan
         result["greenness"] = float(s[mask].mean() / 255.0 * 100.0)      # kepekatan warna hijau
         result["brightness"] = float(v[mask].mean() / 255.0 * 100.0)
     rows = np.where(mask.mean(axis=1) > 0.01)[0]
@@ -205,6 +206,29 @@ def green_analysis(img, px_per_cm=0.0, max_side=640):
     arr[~mask] *= 0.3
     result["overlay"] = Image.fromarray(arr.astype(np.uint8))
     return result
+
+
+def validate_plant_image(img, green_data=None):
+    """
+    Validasi heuristik apakah citra memenuhi kriteria dedaunan tanaman pakcoy.
+    Mencegah wajah manusia, ruangan, perabot, atau objek non-tanaman diklasifikasikan sebagai tahap pakcoy.
+    Mengembalikan: (is_plant: bool, reason: str, details: dict)
+    """
+    g = green_data if green_data is not None else green_analysis(img)
+    cov = float(g.get("coverage_pct", 0.0))
+    comp = float(g.get("compactness", 0.0))
+    grn = float(g.get("greenness", 0.0))
+
+    if cov < 3.5:
+        return False, f"Area hijau dedaunan sangat rendah ({cov:.1f}% < 3.5%), tidak ditemukan tanaman.", g
+    if cov < 10.0 and comp < 0.12:
+        return False, f"Pola hijau terlalu renggang ({cov:.1f}%, kerapatan {comp:.0%}) dan tidak membentuk rumpun daun pakcoy.", g
+    if comp < 0.09 and cov < 20.0:
+        return False, f"Bercak hijau tersebar acak (kerapatan {comp:.0%} < 9%), terindikasi sebagai refleksi/objek latar belakang non-tanaman.", g
+    if grn < 18.0 and cov < 15.0:
+        return False, f"Saturasi klorofil terlalu rendah ({grn:.0%}), tidak menyerupai daun pakcoy.", g
+
+    return True, "Citra memenuhi struktur dedaunan tanaman pakcoy.", g
 
 
 def readiness_index(probs, names):

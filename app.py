@@ -1,5 +1,6 @@
 """Smart Farming Pakcoy: dashboard realtime, eksplorasi data, monitoring sensor, LSTM, prediksi 4 hari,
 CNN (scan foto), dan scan gabungan."""
+import hashlib
 import time
 from pathlib import Path
 
@@ -41,8 +42,19 @@ def load_builtin():
     return sim, asli
 
 
+def get_models_fingerprint():
+    """Menghasilkan sidik jari (hash) dari semua file model agar cache Streamlit ter-invalidasi otomatis saat file berubah."""
+    sig = ["v5_cnn_4class_gatekeeper_2026"]
+    for fname in ["config_cnn.json", "config_lstm.json", "model_cnn.keras", "model_lstm_klasifikasi.keras", "model_lstm_forecast.keras"]:
+        p = MODELS_DIR / fname
+        if p.exists():
+            st_info = p.stat()
+            sig.append(f"{fname}:{st_info.st_mtime_ns}:{st_info.st_size}")
+    return hashlib.md5(";".join(sig).encode("utf-8")).hexdigest()
+
+
 @st.cache_resource(show_spinner="Memuat model AI (pertama kali bisa beberapa detik)...")
-def load_models():
+def _load_models_cached(_fp):
     res = {"cnn": None, "clf": None, "fc": None, "cfg_lstm": None, "cfg_cnn": None, "error": None}
     try:
         from tensorflow import keras
@@ -62,6 +74,11 @@ def load_models():
     except Exception as e:
         res["error"] = f"Gagal memuat model (cek versi TensorFlow di requirements.txt): {e}"
     return res
+
+
+def load_models():
+    fp = get_models_fingerprint()
+    return _load_models_cached(fp)
 
 
 def lstm_ready(m, kind):
@@ -197,11 +214,21 @@ def predict_forecast(m, window_df):
 def predict_image(m, img):
     size = tuple(m["cfg_cnn"]["img_size"]) if m.get("cfg_cnn") else (224, 224)
     x = np.asarray(img.convert("RGB").resize(size), dtype="float32")[None]
-    return m["cnn"](x, training=False).numpy()[0]
+    raw_p = m["cnn"](x, training=False).numpy()[0]
+    if len(raw_p) == 3:
+        p = np.array([0.0, raw_p[0], raw_p[1], raw_p[2]], dtype="float32")
+    elif len(raw_p) == 4:
+        p = np.array(raw_p, dtype="float32")
+    else:
+        p = np.array(raw_p, dtype="float32")
+    return p
 
 
 def cnn_names(m):
-    return m["cfg_cnn"]["class_names"] if m.get("cfg_cnn") else getattr(utils, "CNN_CLASS_NAMES", utils.CLASS_NAMES)
+    cfg_names = m.get("cfg_cnn", {}).get("class_names") if m.get("cfg_cnn") else None
+    if cfg_names and len(cfg_names) == 4:
+        return cfg_names
+    return utils.CNN_CLASS_NAMES
 
 
 # ================================================================= sidebar
@@ -231,7 +258,7 @@ def sidebar():
         st.session_state.pop("upload_df", None)
 
     if sb.button("Muat ulang model", key="reload_models"):
-        load_models.clear()
+        _load_models_cached.clear()
         st.rerun()
 
     sb.divider()
@@ -780,6 +807,7 @@ def photo_panel(m, img, key):
                 st.info("💡 Mode Otomatis Aktif: Ukuran bentang daun langsung disajikan dalam **centimeter (cm)**.")
 
     g = utils.green_analysis(img, scale)
+    is_plant, plant_reason, _ = utils.validate_plant_image(img, g)
     c1, c2 = st.columns(2)
     c1.image(img, caption="Foto asli")
     c2.image(g["overlay"], caption="Area daun terdeteksi (area lain digelapkan)")
@@ -787,17 +815,33 @@ def photo_panel(m, img, key):
     if m.get("cnn") is not None:
         names = cnn_names(m)
         p = predict_image(m, img)
-        k = int(p.argmax())
+
+        # Validasi ganda: jika citra tidak lolos verifikasi dedaunan (wajah manusia, latar ruangan, objek non-tanaman)
+        # langsung tetapkan prediksi ke 'bukan_pakcoy'
+        if not is_plant:
+            idx_bukan = names.index("bukan_pakcoy") if "bukan_pakcoy" in names else 0
+            p_adj = np.zeros_like(p)
+            p_adj[idx_bukan] = 0.99
+            others = [i for i in range(len(names)) if i != idx_bukan]
+            for i in others:
+                p_adj[i] = 0.01 / max(1, len(others))
+            p = p_adj
+            k = idx_bukan
+        else:
+            k = int(p.argmax())
+
         cnn = (names[k], float(p[k]), p, names)
         idx = utils.readiness_index(p, names)
         if names[k] == "bukan_pakcoy":
             ui.kpi_cards([
                 dict(icon="alert-triangle", label="Status Objek (CNN)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#ea2261")),
                 dict(icon="sparkles", label="Keyakinan", value=f"{p[k]:.0%}", color="#ea2261"),
-                dict(icon="x-circle", label="Kesiapan Panen", value="Tidak Berlaku", color="#ea2261", sub="Objek non-pakcoy"),
+                dict(icon="x-circle", label="Kesiapan Panen", value="Tidak Berlaku", color="#ea2261", sub="Bukan tanaman pakcoy"),
             ])
             show(charts.prob_bar(p, names), f"{key}_prob")
-            ui.banner("danger", f"⚠️ Objek terdeteksi sebagai **BUKAN TANAMAN PAKCOY** (Keyakinan: {p[k]:.0%}). Indeks kesiapan panen dan analisis pertumbuhan tidak berlaku untuk objek ini.")
+            alasan_detail = f" — {plant_reason}" if not is_plant else ""
+            ui.banner("danger", f"⚠️ Objek terdeteksi sebagai **BUKAN TANAMAN PAKCOY**{alasan_detail} (Keyakinan: {p[k]:.0%}). "
+                                f"Indeks kesiapan panen dan analisis kanopi tanaman tidak berlaku untuk objek ini.")
         else:
             ui.kpi_cards([
                 dict(icon="cpu", label="Tahap (CNN)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#e8ecf4")),
@@ -811,8 +855,28 @@ def photo_panel(m, img, key):
                 ui.banner("warn", "Keyakinan model rendah. Coba foto yang lebih jelas atau dari sudut lain.")
     else:
         ui.banner("warn", "Model CNN belum tersedia. Hanya analisis visual daun yang ditampilkan.")
-    if g["coverage_pct"] < 5.0 and (cnn is None or cnn[0] != "bukan_pakcoy"):
-        ui.banner("warn", f"⚠️ Tutupan daun hijau pada foto sangat rendah ({g['coverage_pct']:.1f}%). Pastikan foto menampilkan daun tanaman dengan jelas.")
+
+    if not is_plant or (cnn and cnn[0] == "bukan_pakcoy"):
+        cards = [
+            dict(icon="alert-triangle", label="Status Validasi Citra", value="Bukan Tanaman", color="#ea2261",
+                 sub="Wajah/objek non-tanaman terdeteksi"),
+            dict(icon="layers", label="Kerapatan Rumpun Daun", value="Tidak Terdeteksi", color="#94a3b8",
+                 sub="Tidak ada roset daun pakcoy"),
+            dict(icon="maximize", label="Bentang Daun (Lebar × Panjang)", value="Tidak Berlaku", color="#94a3b8",
+                 sub="Bukan tanaman pakcoy"),
+            dict(icon="maximize", label="Perkiraan Luas Daun", value="Tidak Berlaku", color="#94a3b8",
+                 sub="Bukan tanaman pakcoy"),
+            dict(icon="sprout", label="Tingkat Daun Menguning", value="Tidak Berlaku", color="#94a3b8",
+                 sub="Bukan daun pakcoy"),
+            dict(icon="sparkles", label="Tutupan Warna Hijau", value=f"{g['coverage_pct']:.1f}%", color="#94a3b8",
+                 sub="Hanya pantulan latar belakang"),
+        ]
+        ui.kpi_cards(cards)
+        st.caption(
+            "💡 **Pemberitahuan Sistem:** Pengukuran ukuran fisik daun (bentang cm dan perkiraan luas) dinonaktifkan "
+            "karena citra terdeteksi bukan tanaman pakcoy. Silakan potret langsung tanaman pakcoy asli dengan pencahayaan yang memadai."
+        )
+        return cnn, g
 
     # Status indikator visual yang ramah orang awam (satuan cm & cm²)
     w_raw = g.get("width_cm")
@@ -983,15 +1047,12 @@ def page_scan():
     st.markdown('<div class="section-title">Hasil analisis foto</div>', unsafe_allow_html=True)
     cnn, g = photo_panel(m, img, "scan")
 
-    # Gatekeeper penyaring foto: jika terdeteksi bukan pakcoy atau tutupan daun hijau sangat rendah, putus alur LSTM
-    if cnn and cnn[0] == "bukan_pakcoy":
-        ui.banner("danger", "⛔ **Validasi Foto Gagal: Objek terdeteksi BUKAN TANAMAN PAKCOY.**\n\n"
+    # Gatekeeper penyaring foto: jika terdeteksi bukan pakcoy atau struktur tanaman tidak valid, putus alur LSTM
+    is_p_scan, p_reason_scan, _ = utils.validate_plant_image(img, g)
+    if (cnn and cnn[0] == "bukan_pakcoy") or not is_p_scan:
+        alasan_str = f" ({p_reason_scan})" if not is_p_scan else ""
+        ui.banner("danger", f"⛔ **Validasi Foto Gagal: Objek terdeteksi BUKAN TANAMAN PAKCOY{alasan_str}.**\n\n"
                             "Analisis gabungan dan proyeksi sensor 4 hari ke depan **dihentikan** untuk mencegah kesalahan kesimpulan budidaya.")
-        return
-
-    if g["coverage_pct"] < 4.0:
-        ui.banner("danger", "⛔ **Validasi Foto Gagal: Tidak terdeteksi area hijau tanaman yang cukup (<4%).**\n\n"
-                            "Objek diindikasikan bukan tanaman pakcoy. Analisis gabungan dan prediksi sensor dihentikan.")
         return
 
     st.markdown('<div class="section-title">Hasil analisis sensor (LSTM)</div>', unsafe_allow_html=True)
