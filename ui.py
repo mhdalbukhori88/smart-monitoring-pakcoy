@@ -2445,7 +2445,9 @@ div[class*="scan_btn"] button:hover {
   border-color: #15803d !important;
 }
 
-[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] button {
+/* Upload Button in Dropzone */
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] section button,
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploaderDropzone"] button {
   background-color: #ffffff !important;
   border: 1.5px solid #15803d !important;
   color: #15803d !important;
@@ -2457,10 +2459,25 @@ div[class*="scan_btn"] button:hover {
   transition: all 0.15s ease !important;
 }
 
-[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] button:hover {
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] section button:hover,
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploaderDropzone"] button:hover {
   background-color: #15803d !important;
   color: #ffffff !important;
   box-shadow: 0 2px 4px rgba(21, 128, 61, 0.18) !important;
+}
+
+/* Pastikan Tombol Help Tooltip (?) Streamlit Tidak Kena Border Hijau */
+[data-testid="stTooltipHoverTarget"] button,
+[data-testid="stWidgetLabel"] button,
+[data-testid="stFileUploader"] [data-testid="stWidgetLabel"] button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: auto !important;
 }
 
 /* Kustomisasi Teks Batas Upload Menjadi Bahasa Indonesia & Badge Rapi */

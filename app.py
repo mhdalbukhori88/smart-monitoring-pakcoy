@@ -1238,7 +1238,6 @@ def get_image(key):
     f = (st.file_uploader(
             "Pilih foto tanaman pakcoy (JPG / PNG)",
             type=["jpg", "jpeg", "png"],
-            help="Unggah foto daun atau tajuk tanaman pakcoy. Format didukung: JPG, JPEG, PNG. Ukuran maksimal: 10 MB.",
             key=f"{key}_up"
          )
          if mode == "Unggah file foto dari HP/Komputer" else st.camera_input("Arahkan kamera ke tanaman pakcoy", key=f"{key}_cam"))
