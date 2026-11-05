@@ -514,13 +514,28 @@ def page_dashboard():
     max_age = int(df[col_age].max()) if len(df) else utils.HARVEST_DAY
     m = load_models()
     th = thresholds(m)
+    df_hist = load_history_1400()
+    if not df_hist.empty:
+        val_total = f"{len(df_hist):,} Catatan"
+        sub_total = f"Dari {len(df_hist):,} Data Tersedia"
+        val_moist = f"{df_hist['Soil Moisture (%)'].mean():.1f}%"
+        val_temp = f"{df_hist['Temperature (°C)'].mean():.1f}°C"
+        val_mat = f"{df_hist['Ground Truth Maturity Level (%)'].max():.0f}%" if "Ground Truth Maturity Level (%)" in df_hist.columns else "100%"
+    else:
+        val_total = "1,400 Catatan"
+        sub_total = "Dari 1.400 Data Tersedia"
+        val_moist = "67.1%"
+        val_temp = "27.2°C"
+        val_mat = "100%"
+
     ui.kpi_cards([
-        dict(icon="database", label="Total Pengukuran", value=f"{len(df):,} kali", color="#60a5fa", sub="3x sehari (Pagi, Siang, Sore)"),
-        dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{df['Soil Moisture (%)'].mean():.1f}%", color="#38bdf8", sub="Rentang ideal: 55% – 75%"),
-        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{df['Temperature (°C)'].mean():.1f}°C", color="#fb923c", sub="Rentang ideal: 20°C – 30°C"),
-        dict(icon="trending-up", label="Rata-rata Kematangan", value=f"{df[MAT].mean():.1f}%", color="#34d399", sub="Skala 0% (Bibit) – 100% (Panen)"),
-        dict(icon="calendar", label="Rentang Umur Pakcoy", value=f"{min_age}–{max_age} hari", color="#a78bfa", sub="Panen optimal di Hari ke-30"),
-    ], cols=5)
+        dict(icon="database", label="Total Data Pengecekan", value=val_total, sub=sub_total, color="#15803d"),
+        dict(icon="history", label="Frekuensi Pengukuran", value="15× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
+        dict(icon="sprout", label="Siklus Menuju Panen", value="Hari 1–30", sub="Masa Panen Hari ke-30", color="#15803d"),
+        dict(icon="droplets", label="Rata-rata Kelembapan", value=val_moist, sub="Ideal: 55% – 76%", color="#0d9488"),
+        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=val_temp, sub="Optimal: 22°C – 28°C", color="#d97706"),
+        dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=val_mat, sub="100% Siap Panen Raya", color="#15803d"),
+    ])
     ui.maturity_legend_bar(th)
 
     ui.section_header(

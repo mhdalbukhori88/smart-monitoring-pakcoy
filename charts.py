@@ -87,10 +87,22 @@ def donut_condition(df):
 
 
 def bar_stage(df):
-    counts = df["Ground Truth Criteria"].value_counts().reindex(CLASS_NAMES).fillna(0)
+    col = "Fase" if "Fase" in df.columns and any(k in df["Fase"].values for k in ["Fase Awal", "Fase Vegetatif"]) else "Ground Truth Criteria"
+    if col not in df.columns or len(df) == 0:
+        return go.Figure()
+    counts = df[col].value_counts()
+    matching = [k for k in CLASS_NAMES if k in counts.index]
+    if matching:
+        counts = counts.reindex(CLASS_NAMES).fillna(0)
+        x_vals = [CLASS_LABELS.get(k, k) for k in counts.index]
+        colors = [STAGE_COLORS.get(k, "#15803d") for k in counts.index]
+    else:
+        x_vals = [str(k) for k in counts.index]
+        palette = ["#0d9488", "#15803d", "#d97706", "#0284c7", "#8b5cf6"]
+        colors = [palette[i % len(palette)] for i in range(len(counts))]
     fig = go.Figure(go.Bar(
-        x=[CLASS_LABELS[k] for k in counts.index], y=counts.values.tolist(),
-        marker_color=[STAGE_COLORS[k] for k in counts.index],
+        x=x_vals, y=counts.values.tolist(),
+        marker_color=colors,
         text=[int(v) for v in counts.values], textposition="outside"))
     return _layout(fig, "Jumlah Data per Fase Pertumbuhan", height=360, legend=False, ytitle="Jumlah Pengukuran")
 
@@ -98,13 +110,22 @@ def bar_stage(df):
 def maturity_curve(df):
     """Maturity terhadap Umur Tanaman, diwarnai per tahap (rata-rata jika ada banyak siklus)."""
     col_age = "Day" if "Day" in df.columns else ("DAP" if "DAP" in df.columns else df.columns[0])
-    g = df.groupby([col_age, "Ground Truth Criteria"])[MATURITY_COL].mean().reset_index()
     fig = go.Figure()
-    for k in CLASS_NAMES:
-        d = g[g["Ground Truth Criteria"] == k]
-        if len(d):
-            fig.add_trace(go.Scatter(x=d[col_age], y=d[MATURITY_COL], mode="lines+markers", name=CLASS_LABELS[k],
-                                     line=dict(color=STAGE_COLORS[k], width=3), marker=dict(size=6)))
+    if "Ground Truth Criteria" in df.columns and MATURITY_COL in df.columns:
+        g = df.groupby([col_age, "Ground Truth Criteria"])[MATURITY_COL].mean().reset_index()
+        for k in CLASS_NAMES:
+            d = g[g["Ground Truth Criteria"] == k]
+            if len(d):
+                fig.add_trace(go.Scatter(x=d[col_age], y=d[MATURITY_COL], mode="lines+markers", name=CLASS_LABELS[k],
+                                         line=dict(color=STAGE_COLORS[k], width=3), marker=dict(size=6)))
+    if len(fig.data) == 0 and len(df) > 0 and MATURITY_COL in df.columns:
+        g_all = df.groupby(col_age)[MATURITY_COL].mean().reset_index()
+        fig.add_trace(go.Scatter(
+            x=g_all[col_age], y=g_all[MATURITY_COL], mode="lines+markers",
+            name="Rata-rata Kematangan (%)",
+            line=dict(color="#15803d", width=3),
+            marker=dict(size=6)
+        ))
     return _layout(fig, "Rata-rata Kematangan Tanaman dari Hari ke-1 hingga Panen (Hari ke-30)", height=380,
                    xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
 
@@ -207,7 +228,7 @@ def live_line(hist, col, title, color, ytitle, dry=None, wet=None, trend=None, h
     if wet is not None:
         fig.add_hline(y=wet, line_dash="dot", line_color="#0284c7", annotation_text="Batas Basah (Pompa Mati)", annotation_position="top left",
                       annotation_font_color="#0284c7")
-    return _layout(fig, title, height=height, xtitle="Urutan Pengukuran (3x Sehari · 90 Ukur = 30 Hari)", ytitle=ytitle)
+    return _layout(fig, title, height=height, xtitle="Urutan Pengukuran Sensor (Hari ke-1 s.d. 30)", ytitle=ytitle)
 
 
 def growth_curve(grow, thresholds):
@@ -234,7 +255,7 @@ def growth_curve(grow, thresholds):
         ))
     fig.update_yaxes(range=[0, 100])
     return _layout(fig, "Kurva Pertumbuhan & Kematangan Sejak Awal Tanam", height=300, legend=False,
-                   xtitle="Urutan Pengukuran (3x Sehari · 90 Ukur = 30 Hari)", ytitle="Tingkat Kematangan (%)")
+                   xtitle="Urutan Pengukuran Sensor (Hari ke-1 s.d. 30)", ytitle="Tingkat Kematangan (%)")
 
 
 def gauge(value, title, thresholds=(66.5, 89.0)):
@@ -291,7 +312,7 @@ def forecast_line(hist_x, hist_y, pred_x, pred_y, title, ytitle, color, actual_y
         ))
     if hist_x:
         fig.add_vline(x=hist_x[-1], line_dash="dot", line_color="#94a89b", annotation_text="Batas Hari Ini", annotation_font_color="#5c6f64")
-    return _layout(fig, title, height=320, xtitle="Urutan Pengukuran (3x Sehari)", ytitle=ytitle)
+    return _layout(fig, title, height=320, xtitle="Urutan Pengukuran Sensor", ytitle=ytitle)
 
 
 def maturity_forecast(pred_x, pred_y, thresholds, last_x=None, last_y=None):
