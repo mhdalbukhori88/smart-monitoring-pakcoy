@@ -284,7 +284,7 @@ def render_ai_assistant():
 
     SUGGESTIONS = [
         "Berapa kelembapan dan suhu ideal untuk merawat pakcoy?",
-        "Bagaimana cara membaca hasil Diagnosis Lengkap?",
+        "Bagaimana riwayat perkembangan pakcoy dari siklus 1 hingga 30 (panen)?",
         "Apa arti kondisi tanah Kering, Ideal, dan Terlalu Basah?",
         "Kapan tanaman pakcoy siap dipanen dan apa ciri-cirinya?",
     ]

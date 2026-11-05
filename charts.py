@@ -315,3 +315,88 @@ def confusion_fig(cm, names, title):
                                textfont=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=13.5, color="#111c16")))
     fig.update_yaxes(autorange="reversed")
     return _layout(fig, title, height=340, legend=False, xtitle="Tebakan AI (Prediksi)", ytitle="Kondisi Sebenarnya")
+
+
+def history_maturity_curve(df):
+    """Kurva Kematangan Tanaman Pakcoy dari Hari ke-1 hingga Masa Panen (Hari ke-30)."""
+    fig = go.Figure()
+    fig.add_hrect(y0=0, y1=33, fillcolor="#0d9488", opacity=0.07, line_width=0,
+                  annotation_text="Fase Awal (0–33%)", annotation_position="top left", annotation_font_color="#0d9488")
+    fig.add_hrect(y0=33, y1=66, fillcolor="#0284c7", opacity=0.06, line_width=0,
+                  annotation_text="Fase Vegetatif (34–66%)", annotation_position="top left", annotation_font_color="#0284c7")
+    fig.add_hrect(y0=66, y1=84, fillcolor="#d97706", opacity=0.07, line_width=0,
+                  annotation_text="Mendekati Panen (67–84%)", annotation_position="top left", annotation_font_color="#d97706")
+    fig.add_hrect(y0=84, y1=100, fillcolor="#15803d", opacity=0.10, line_width=0,
+                  annotation_text="Siap Panen (85–100%)", annotation_position="top left", annotation_font_color="#15803d")
+    
+    col_day = "Day" if "Day" in df.columns else ("Hari" if "Hari" in df.columns else df.columns[0])
+    col_mat = "Ground Truth Maturity Level (%)" if "Ground Truth Maturity Level (%)" in df.columns else MATURITY_COL
+    
+    g = df.groupby(col_day)[col_mat].mean().reset_index()
+    fig.add_trace(go.Scatter(
+        x=g[col_day], y=g[col_mat], mode="lines+markers",
+        name="Rata-rata Kematangan (%)",
+        line=dict(color="#15803d", width=3.2),
+        marker=dict(size=7, color="#15803d"),
+        hovertemplate="Hari ke-%{x}<br>Kematangan: <b>%{y:.1f}%</b><extra></extra>"
+    ))
+    fig.update_xaxes(range=[0.5, 30.5], dtick=2)
+    fig.update_yaxes(range=[0, 105])
+    return _layout(fig, "Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", height=370,
+                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+
+
+def history_daily_15times(df):
+    """Pola Fluktuasi Harian Sensor untuk 15 Kali Pengecekan per Hari (06:00 s.d. 20:00)."""
+    times_15 = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"]
+    if "Time" in df.columns and len(df) > 0:
+        g = df.groupby("Time")[["Soil Moisture (%)", "Temperature (°C)"]].mean().reindex(times_15).dropna(how="all")
+    else:
+        g = pd.DataFrame(columns=["Soil Moisture (%)", "Temperature (°C)"])
+    
+    x_lbls = [str(t) for t in g.index]
+    moist_vals = g["Soil Moisture (%)"].round(1).tolist() if len(g) else []
+    temp_vals = g["Temperature (°C)"].round(1).tolist() if len(g) else []
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=x_lbls, y=moist_vals, name="Kelembapan Tanah (%)",
+        marker_color="#15803d",
+        text=[f"{v:.1f}%" for v in moist_vals], textposition="outside",
+        hovertemplate="Pukul <b>%{x}</b><br>Kelembapan: <b>%{y:.1f}%</b><extra></extra>"
+    ))
+    fig.add_trace(go.Bar(
+        x=x_lbls, y=temp_vals, name="Suhu Udara (°C)",
+        marker_color="#d97706",
+        text=[f"{v:.1f}°C" for v in temp_vals], textposition="outside",
+        hovertemplate="Pukul <b>%{x}</b><br>Suhu Udara: <b>%{y:.1f}°C</b><extra></extra>"
+    ))
+    max_y = max(moist_vals + temp_vals + [75.0])
+    fig.update_layout(barmode="group")
+    fig.update_yaxes(range=[0, max_y * 1.2])
+    return _layout(fig, "Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", legend=True,
+                   xtitle="Jam Pengecekan Sensor (15× Sehari)", ytitle="Nilai Rata-rata Pengukuran")
+
+
+def history_sensor_trend(df):
+    """Tren Kelembapan Tanah dan Suhu Udara Berdasarkan Hari Pertumbuhan (Hari 1–30)."""
+    col_day = "Day" if "Day" in df.columns else ("Hari" if "Hari" in df.columns else df.columns[0])
+    g = df.groupby(col_day)[["Soil Moisture (%)", "Temperature (°C)"]].mean().reset_index()
+    
+    fig = go.Figure()
+    fig.add_hrect(y0=55, y1=76, fillcolor="#15803d", opacity=0.08, line_width=0,
+                  annotation_text="Rentang Kelembapan Optimal (55–76%)", annotation_position="top left", annotation_font_color="#15803d")
+    fig.add_trace(go.Scatter(
+        x=g[col_day], y=g["Soil Moisture (%)"], mode="lines+markers",
+        name="Kelembapan Tanah (%)", line=dict(color="#15803d", width=2.8), marker=dict(size=6),
+        hovertemplate="Hari ke-%{x}<br>Kelembapan: <b>%{y:.1f}%</b><extra></extra>"
+    ))
+    fig.add_trace(go.Scatter(
+        x=g[col_day], y=g["Temperature (°C)"], mode="lines+markers",
+        name="Suhu Udara (°C)", line=dict(color="#d97706", width=2.8), marker=dict(size=6),
+        hovertemplate="Hari ke-%{x}<br>Suhu: <b>%{y:.1f}°C</b><extra></extra>"
+    ))
+    fig.update_xaxes(range=[0.5, 30.5], dtick=2)
+    return _layout(fig, "Tren Kelembapan & Suhu Sepanjang Siklus Tanam (Hari 1 s.d. 30)", legend=True,
+                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Nilai Sensor")
+

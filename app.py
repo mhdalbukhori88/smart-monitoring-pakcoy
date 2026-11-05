@@ -1307,126 +1307,171 @@ def page_cnn():
             ui.banner("info", "Konfigurasi model belum ada. Latih model di Colab terlebih dulu.")
 
 
-# ================================================================= scan gabungan
-def page_scan():
-    ui.hero("Diagnosis Lengkap — Gabungan Foto Daun & Sensor Tanah",
-            "Masukkan foto daun dan pilih siklus sensor di bawah, lalu tekan tombol 'Jalankan Diagnosis Lengkap' untuk melihat laporan terpadu.",
-            "scan-search")
-    m = load_models()
-    ui.photo_guide_card()
+# ================================================================= history perkembangan
+@st.cache_data
+def load_history_1400():
+    p = DATA_DIR / "history_perkembangan_pakcoy_1400.csv"
+    if p.exists():
+        return pd.read_csv(p)
+    return pd.DataFrame()
 
-    with st.container(border=True, key="card_scan_ctrl"):
-        st.markdown('<div class="section-title" style="margin-top:0;">Langkah 1 — Masukkan Foto Tanaman Pakcoy</div>', unsafe_allow_html=True)
-        img, img_sig = get_image("scan")
 
-        st.markdown('<div class="section-title">Langkah 2 — Pilih Siklus & Catatan Sensor Kebun</div>', unsafe_allow_html=True)
-        c_ser, c_sld = st.columns([1.25, 2.75], vertical_alignment="top")
-        df = pick_series("scan", c_ser)
-        w_in = m["cfg_lstm"]["w_in"] if m.get("cfg_lstm") else 12
-        if len(df) < w_in:
-            ui.banner("warn", f"Dataset memiliki {len(df)} pembacaan. Minimal dibutuhkan {w_in} pembacaan berurutan.")
+@st.cache_data
+def load_raw_dataset():
+    p = DATA_DIR / "dataset_asli_mentah.csv"
+    if p.exists():
+        return pd.read_csv(p)
+    return pd.DataFrame()
+
+
+def page_history_perkembangan():
+    ui.hero("History Perkembangan Tanaman Pakcoy (Siklus 1–30)",
+            "Catatan komprehensif riwayat pertumbuhan tanaman pakcoy dari benih hingga panen raya (1.400 data pengukuran, 15× pengecekan harian).",
+            "history")
+
+    df_hist = load_history_1400()
+    if df_hist.empty:
+        ui.banner("warn", "File dataset riwayat perkembangan (history_perkembangan_pakcoy_1400.csv) belum tersedia.")
+        return
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Riwayat & Analisis Pertumbuhan",
+        "📋 Tabel Lengkap (1.400 Data Pengecekan)",
+        "📁 Dataset Asli Excel (1.140 Data Mentah)",
+        "🌱 Panduan Siklus 1–30 & Standar Panen"
+    ])
+
+    with tab1:
+        # Filter interaktif
+        with st.container(border=True):
+            st.markdown('<div class="section-title" style="margin-top:0;">Filter Riwayat Perkembangan Tanaman</div>', unsafe_allow_html=True)
+            f1, f2, f3, f4 = st.columns([1.2, 1.1, 1.2, 1.1])
+            
+            cycle_opts = ["Semua Siklus (1–30)"] + [f"Siklus {i}" for i in range(1, 31)]
+            sel_cyc = f1.selectbox("Pilih Siklus Budidaya:", cycle_opts, key="hist_filter_cyc")
+            
+            day_opts = ["Semua Hari (1–30)"] + [f"Hari ke-{i}" for i in range(1, 31)]
+            sel_day = f2.selectbox("Pilih Umur Tanaman:", day_opts, key="hist_filter_day")
+            
+            times_all = sorted(list(df_hist["Time"].unique()))
+            time_opts = ["Semua Jam (15× Pengecekan)"] + times_all
+            sel_time = f3.selectbox("Jam Pengukuran:", time_opts, key="hist_filter_time")
+            
+            fase_opts = ["Semua Fase", "Fase Awal", "Fase Vegetatif", "Mendekati Panen", "Siap Panen"]
+            sel_fase = f4.selectbox("Fase Pertumbuhan:", fase_opts, key="hist_filter_fase")
+
+        # Terapkan filter
+        df_view = df_hist.copy()
+        if sel_cyc != "Semua Siklus (1–30)":
+            cyc_num = int(sel_cyc.replace("Siklus ", ""))
+            df_view = df_view[df_view["Cycle_ID"] == cyc_num]
+        if sel_day != "Semua Hari (1–30)":
+            day_num = int(sel_day.replace("Hari ke-", ""))
+            df_view = df_view[df_view["Day"] == day_num]
+        if sel_time != "Semua Jam (15× Pengecekan)":
+            df_view = df_view[df_view["Time"] == sel_time]
+        if sel_fase != "Semua Fase":
+            df_view = df_view[df_view["Fase"] == sel_fase]
+
+        if df_view.empty:
+            ui.banner("warn", "Tidak ada data yang cocok dengan kombinasi filter yang dipilih.")
             return
 
-        if "scan_step" not in st.session_state or st.session_state["scan_step"] > len(df) or st.session_state["scan_step"] < w_in:
-            st.session_state["scan_step"] = min(45, len(df))
-        step = c_sld.slider("Gunakan catatan sensor sampai urutan pengukuran ke-:", w_in, len(df), key="scan_step")
+        # KPI Metrics Cards
+        avg_moist = df_view["Soil Moisture (%)"].mean()
+        avg_temp = df_view["Temperature (°C)"].mean()
+        max_mat = df_view["Ground Truth Maturity Level (%)"].max()
 
-        sc_c1, sc_c2, sc_c3, _ = st.columns([1.0, 1.15, 1.05, 1.2])
-        if sc_c1.button("Fase Awal · Hari ke-7", use_container_width=True, key="scan_btn1"):
-            st.session_state["scan_step"] = min(20, len(df))
-            st.rerun()
-        if sc_c2.button("Fase Pertengahan · Hari ke-17", use_container_width=True, key="scan_btn2"):
-            st.session_state["scan_step"] = min(50, len(df))
-            st.rerun()
-        if sc_c3.button("Menjelang Panen · Hari ke-25", use_container_width=True, key="scan_btn3"):
-            st.session_state["scan_step"] = min(75, len(df))
-            st.rerun()
+        ui.kpi_cards([
+            dict(icon="database", label="Total Data Pengecekan", value=f"{len(df_view):,} Catatan", sub="Dari 1.400 Data Tersedia", color="#15803d"),
+            dict(icon="history", label="Frekuensi Pengukuran", value="15× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
+            dict(icon="sprout", label="Siklus Menuju Panen", value="Hari 1–30", sub="Masa Panen Hari ke-30", color="#15803d"),
+            dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub="Ideal: 55% – 76%", color="#0d9488"),
+            dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub="Optimal: 22°C – 28°C", color="#d97706"),
+            dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub="100% Siap Panen Raya", color="#15803d"),
+        ])
 
-        row_sc = df.iloc[step - 1]
-        day_sc = row_sc.get("Day", "?")
-        time_sc = str(row_sc.get("Time", "?"))
+        # Visualisasi Utama
+        st.markdown('<div class="section-title">Kurva Pertumbuhan &amp; Kematangan Tanaman Menuju Panen (Hari 1 s.d. 30)</div>', unsafe_allow_html=True)
+        show(charts.history_maturity_curve(df_view), "fig_hist_mat")
 
-        scan_sig = (img_sig, st.session_state.get("scan_series", ""), int(step), len(df))
-        st.markdown('<div style="margin-top:8px;border-top:1px solid #edf2ee;padding-top:10px;"></div>', unsafe_allow_html=True)
-        b_l, b_r = st.columns([3.4, 1.0], vertical_alignment="center")
-        b_l.markdown(
-            f'<div class="action-bar-info">'
-            f'<strong>Sensor Terpilih:</strong> Hari ke-{day_sc} &middot; Jam {time_sc} &middot; Ukur #{step} &middot; '
-            f'<strong>Foto:</strong> {"Sudah diunggah" if img is not None else "Belum diunggah"}'
-            f'</div>',
-            unsafe_allow_html=True
+        st.markdown('<div class="section-title">Profil Fluktuasi Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)</div>', unsafe_allow_html=True)
+        show(charts.history_daily_15times(df_view), "fig_hist_daily")
+
+        st.markdown('<div class="section-title">Tren Sensor Lingkungan &amp; Sebaran Kondisi Tanah</div>', unsafe_allow_html=True)
+        col_tr1, col_tr2 = st.columns([1.6, 1.0])
+        with col_tr1:
+            show(charts.history_sensor_trend(df_view), "fig_hist_trend")
+        with col_tr2:
+            show(charts.donut_condition(df_view), "fig_hist_donut")
+
+    with tab2:
+        st.markdown('<div class="section-title" style="margin-top:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy (1.400 Data)</div>', unsafe_allow_html=True)
+        st.caption("Data mencakup 30 siklus pertumbuhan pakcoy dari hari ke-1 hingga hari ke-30 (masa panen) dengan frekuensi 15 kali pengecekan setiap harinya.")
+
+        tbl_show = df_hist.copy()
+        disp_cols = {
+            "No": "No",
+            "Siklus": "Siklus",
+            "Day": "Hari ke-",
+            "DAP": "HST",
+            "Time": "Waktu Cek",
+            "Soil Moisture (%)": "Kelembapan (%)",
+            "Temperature (°C)": "Suhu (°C)",
+            "Soil Condition": "Kondisi Tanah",
+            "Ground Truth Maturity Level (%)": "Kematangan (%)",
+            "Fase": "Fase Pertumbuhan",
+            "Status Pompa": "Status Pompa"
+        }
+        present_cols = [c for c in disp_cols.keys() if c in tbl_show.columns]
+        tbl_disp = tbl_show[present_cols].rename(columns=disp_cols)
+
+        st.dataframe(tbl_disp, hide_index=True, width="stretch", height=500)
+
+        csv_1400 = df_hist.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Unduh Dataset Lengkap 1.400 Data Pengecekan (CSV)",
+            data=csv_1400,
+            file_name="dataset_history_pakcoy_1400_data.csv",
+            mime="text/csv",
+            key="btn_dl_1400_csv"
         )
-        if b_r.button("Jalankan Diagnosis", type="primary", key="btn_scan_run"):
-            if img is None:
-                ui.banner("warn", "Silakan unggah atau ambil foto tanaman pada Langkah 1 terlebih dahulu sebelum menjalankan diagnosis.")
-            else:
-                st.session_state["scan_committed_sig"] = scan_sig
 
-    if img is None:
-        st.session_state.pop("scan_committed_sig", None)
-        ui.pending_action_card(
-            "Unggah Foto Pakcoy pada Langkah 1 untuk Memulai Diagnosis Lengkap",
-            "Unggah foto daun pakcoy pada Langkah 1 dan pilih siklus sensor pada Langkah 2 untuk menghasilkan laporan diagnosis terpadu (CNN + LSTM).",
-            icon_name="scan-search"
-        )
-        return
-    elif st.session_state.get("scan_committed_sig") != scan_sig:
-        ui.pending_action_card(
-            "Tekan Tombol 'Jalankan Diagnosis' untuk Memulai Diagnosis Lengkap",
-            "Foto tanaman pakcoy dan catatan sensor telah siap. Silakan klik tombol hijau 'Jalankan Diagnosis' di atas untuk menghasilkan laporan diagnosis terpadu (CNN + LSTM).",
-            icon_name="scan-search"
-        )
-        return
-
-    st.markdown('<div class="section-title">Bagian A — Hasil Pemeriksaan Foto Daun</div>', unsafe_allow_html=True)
-    cnn, g = photo_panel(m, img, "scan", sensor_row=df.iloc[step - 1])
-
-    is_p_scan, p_reason_scan, _ = utils.validate_plant_image(img, g)
-    if (cnn and cnn[0] == "bukan_pakcoy") or not is_p_scan:
-        alasan_str = f" ({p_reason_scan})" if not is_p_scan else ""
-        ui.banner("danger", f"Validasi Foto Gagal: Objek terdeteksi BUKAN TANAMAN PAKCOY{alasan_str}. "
-                            "Diagnosis gabungan dihentikan agar tidak menghasilkan rekomendasi budidaya yang keliru.")
-        return
-
-    st.markdown('<div class="section-title">Bagian B — Hasil Pemeriksaan Sensor Tanah & Prakiraan 4 Hari</div>', unsafe_allow_html=True)
-    lstm, table = None, None
-    if lstm_ready(m, "clf"):
-        wc = m["cfg_lstm"]["w_cls"]
-        pc = predict_stage(m, df.iloc[step - wc: step])
-        lstm = (utils.CLASS_NAMES[int(pc.argmax())], float(pc.max()))
-        ui.banner("ok", f"Hasil Analisis Sensor (LSTM): Tanaman berada pada fase {label(lstm[0])} (Keyakinan AI: {lstm[1]:.0%})")
-    else:
-        ui.banner("warn", "Model LSTM klasifikasi belum tersedia.")
-    if lstm_ready(m, "fc"):
-        table = predict_forecast(m, df.iloc[step - w_in: step].reset_index(drop=True))
-        ui.forecast_4day_cards(table, start_day=day_sc, thresholds=thresholds(m), dry=DRY, wet=WET)
-        disp_scan_tbl = table.drop(columns=["Maturity (%)"], errors="ignore").rename(columns={
-            "Langkah": "Urutan ke-",
-            "Hari": "Hari ke Depan",
-            "Jam": "Waktu Ukur",
-            "Tahap": "Prakiraan Fase"
-        })
-        st.dataframe(disp_scan_tbl, hide_index=True, width="stretch")
-    st.divider()
-    st.markdown('<div class="section-title">Bagian C — Kesimpulan Akhir & Rekomendasi Perawatan</div>', unsafe_allow_html=True)
-    if cnn and lstm:
-        if cnn[0] == lstm[0]:
-            ui.banner("ok", f"Hasil Foto dan Sensor SEPAKAT: Tanaman pakcoy berada pada fase {label(cnn[0])}.")
+    with tab3:
+        ui.banner("info", "Menampilkan dataset asli mentah dari file 'dataset asli/new Dataset_Pakcoy.xlsx' (1.140 baris data observasi kebun dengan interval 3 kali pengukuran per hari: 08:00, 12:00, 16:00).")
+        df_raw = load_raw_dataset()
+        if not df_raw.empty:
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Total Data Asli", f"{len(df_raw):,} Baris")
+            k2.metric("Rentang Hari", f"Hari {df_raw['Day'].min()} s.d. {df_raw['Day'].max()}")
+            k3.metric("Frekuensi Pengecekan Asli", "3× / Hari (08:00, 12:00, 16:00)")
+            st.dataframe(df_raw, hide_index=True, width="stretch", height=450)
+            csv_raw = df_raw.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📥 Unduh Dataset Asli Mentah (CSV)",
+                data=csv_raw,
+                file_name="dataset_asli_mentah_pakcoy.csv",
+                mime="text/csv",
+                key="btn_dl_raw_csv"
+            )
         else:
-            ui.banner("warn", f"Hasil Foto ({label(cnn[0])}) dan Sensor ({label(lstm[0])}) menunjukkan fase yang berbeda. "
-                              "Pastikan foto dan sensor berasal dari tanaman dengan umur tanam yang sama, lalu periksa kondisi daun secara langsung.")
-    final = (cnn or lstm or [None])[0]
-    if final and final in utils.STAGE_INFO and final != "bukan_pakcoy":
-        ui.banner("info", "Ciri Tanaman Saat Ini: " + utils.STAGE_INFO[final]["ciri"])
-        ui.banner("ok", "Saran Tindakan Petani: " + utils.STAGE_INFO[final]["saran"])
-    if table is not None:
-        mat_scan = table["Tingkat Kematangan (%)"].iloc[-1] if "Tingkat Kematangan (%)" in table.columns else table["Maturity (%)"].iloc[-1]
-        ui.banner("info", f"Prakiraan 4 Hari ke Depan: Tanaman diperkirakan memasuki fase {table['Tahap'].iloc[-1]} "
-                          f"dengan tingkat kematangan mencapai {mat_scan:.0f}%.")
-    report = utils.build_report(cnn=(cnn[0], cnn[1]) if cnn else None, lstm=lstm, green=g, table=table,
-                                sensor=df.iloc[step - 1])
-    st.download_button("Unduh Laporan Diagnosis Lengkap (File Dokumen .md)", report.encode("utf-8"), file_name="laporan_pakcoy.md",
-                       mime="text/markdown", key="scan_dl")
+            ui.banner("warn", "File dataset asli mentah belum tersedia.")
+
+    with tab4:
+        st.markdown('<div class="section-title" style="margin-top:0;">Standar Agronomi Siklus Tanaman Pakcoy (Hari 1 s.d. 30 Masa Panen)</div>', unsafe_allow_html=True)
+        ui.banner("ok", "Tanaman pakcoy (Brassica rapa L.) memiliki siklus budidaya optimal 30 hari sejak pindah tanam (10 HST) hingga panen raya (40 HST).")
+
+        st.markdown(
+            """
+| Tahap Pertumbuhan | Umur Tanaman (Hari ke-) | Rentang HST | Tingkat Kematangan | Target Kelembapan | Suhu Optimal | Indikator Fisik Daun & Rumpun |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. Fase Awal (Initial Stage)** | Hari 1 – 10 | 10 – 19 HST | 5% – 33% | 70% – 80% (Lembap) | 22°C – 26°C | Daun 2–4 helai, adaptasi akar baru setelah pindah tanam dari semai. |
+| **2. Fase Vegetatif** | Hari 11 – 20 | 20 – 29 HST | 34% – 66% | 60% – 75% (Optimal) | 22°C – 28°C | Pertumbuhan cepat, daun 6–10 helai, batang mulai kokoh dan hijau cerah. |
+| **3. Mendekati Panen (Pre-Harvest)** | Hari 21 – 25 | 30 – 34 HST | 67% – 84% | 55% – 70% (Optimal) | 22°C – 28°C | Daun melebar, tebal, roset terbentuk kompak, tekstur renyah. |
+| **4. Siap Panen (Harvest Ready)** | Hari 26 – 30 | 35 – 40 HST | 85% – 100% | 55% – 65% (Optimal) | 20°C – 28°C | **Panen Raya pada Hari ke-30!** Bobot basah 150–250g per rumpun, daun lebat dan segar. |
+            """
+        )
+        st.info("💡 **Tips Panen dari Pakar Agronomi:** Panen pakcoy terbaik dilakukan pada pagi hari (pukul 06:00 – 08:00) saat kelembapan udara masih tinggi dan terik matahari belum membakar daun. Hal ini menjaga kadar air daun tetap tinggi dan menjaga kesegaran lebih lama.")
 
 
 PAGES = {
@@ -1436,7 +1481,7 @@ PAGES = {
     "🧠 Cek Fase dari Sensor": page_lstm,
     "🔮 Prakiraan 4 Hari": page_forecast,
     "🖼️ Analisis Tanaman (CNN)": page_cnn,
-    "🔍 Diagnosis Lengkap": page_scan,
+    "📜 History Perkembangan Tanaman": page_history_perkembangan,
     "Asisten Kebun AI": ai_assistant.render_ai_assistant,
 }
 
