@@ -2195,6 +2195,16 @@ span[class*="Icon"],
   box-shadow: 0 1px 2px rgba(17, 28, 22, 0.03) !important;
 }
 
+/* Sembunyikan Plotly Modebar (Toolbar Floating) agar tidak menutupi judul grafik */
+.modebar-container,
+.js-plotly-plot .plotly .modebar,
+.plotly .modebar-container {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Override legacy inline indigo badge styles in app.py */
 div[style*="#eef2ff"] {
   background: #f0fdf4 !important;

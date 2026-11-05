@@ -162,7 +162,16 @@ def format_display_df(df):
 
 
 def show(fig, key, container=None):
-    (container or st).plotly_chart(fig, key=key)
+    (container or st).plotly_chart(
+        fig,
+        key=key,
+        use_container_width=True,
+        config={
+            "displayModeBar": False,
+            "staticPlot": False,
+            "responsive": True,
+        }
+    )
 
 
 def get_sources():
@@ -1481,7 +1490,7 @@ PAGES = {
     "🧠 Cek Fase dari Sensor": page_lstm,
     "🔮 Prakiraan 4 Hari": page_forecast,
     "🖼️ Analisis Tanaman (CNN)": page_cnn,
-    "📜 History Perkembangan Tanaman": page_history_perkembangan,
+    "📜 History Perkembangan": page_history_perkembangan,
     "Asisten Kebun AI": ai_assistant.render_ai_assistant,
 }
 

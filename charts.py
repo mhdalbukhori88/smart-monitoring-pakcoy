@@ -73,8 +73,17 @@ def donut_condition(df):
         labels=[COND_LABELS.get(k, k) for k in counts.index],
         values=counts.values.tolist(), hole=0.62,
         marker=dict(colors=[COND_COLORS[k] for k in counts.index]),
-        textinfo="percent+label", sort=False))
-    return _layout(fig, "Proporsi Kondisi Kelembapan Tanah", height=360, legend=False)
+        textinfo="percent",
+        textposition="inside",
+        insidetextorientation="horizontal",
+        sort=False,
+        direction="clockwise"))
+    fig.update_layout(
+        legend=dict(orientation="h", y=-0.20, x=0.5, xanchor="center",
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#5c6f64")),
+        margin=dict(l=14, r=14, t=55, b=35)
+    )
+    return _layout(fig, "Proporsi Kondisi Kelembapan Tanah", height=360, legend=True)
 
 
 def bar_stage(df):
@@ -340,9 +349,10 @@ def history_maturity_curve(df):
         marker=dict(size=7, color="#15803d"),
         hovertemplate="Hari ke-%{x}<br>Kematangan: <b>%{y:.1f}%</b><extra></extra>"
     ))
-    fig.update_xaxes(range=[0.5, 30.5], dtick=2)
+    fig.update_xaxes(range=[0, 31.5], dtick=2)
     fig.update_yaxes(range=[0, 105])
-    return _layout(fig, "Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", height=370,
+    fig.update_layout(margin=dict(l=16, r=28, t=50, b=18))
+    return _layout(fig, "Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", height=370, legend=False,
                    xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
 
 
@@ -372,9 +382,20 @@ def history_daily_15times(df):
         hovertemplate="Pukul <b>%{x}</b><br>Suhu Udara: <b>%{y:.1f}°C</b><extra></extra>"
     ))
     max_y = max(moist_vals + temp_vals + [75.0])
-    fig.update_layout(barmode="group")
+    fig.update_layout(
+        barmode="group",
+        height=390,
+        margin=dict(l=16, r=16, t=55, b=65),
+        legend=dict(
+            orientation="h",
+            y=-0.26,
+            x=0.5,
+            xanchor="center",
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#5c6f64")
+        )
+    )
     fig.update_yaxes(range=[0, max_y * 1.2])
-    return _layout(fig, "Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", legend=True,
+    return _layout(fig, "Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", height=390, legend=True,
                    xtitle="Jam Pengecekan Sensor (15× Sehari)", ytitle="Nilai Rata-rata Pengukuran")
 
 
@@ -396,7 +417,11 @@ def history_sensor_trend(df):
         name="Suhu Udara (°C)", line=dict(color="#d97706", width=2.8), marker=dict(size=6),
         hovertemplate="Hari ke-%{x}<br>Suhu: <b>%{y:.1f}°C</b><extra></extra>"
     ))
-    fig.update_xaxes(range=[0.5, 30.5], dtick=2)
-    return _layout(fig, "Tren Kelembapan & Suhu Sepanjang Siklus Tanam (Hari 1 s.d. 30)", legend=True,
+    fig.update_xaxes(range=[0, 31.5], dtick=2)
+    fig.update_layout(
+        margin=dict(l=16, r=28, t=52, b=30),
+        legend=dict(orientation="h", y=-0.24, x=0.5, xanchor="center")
+    )
+    return _layout(fig, "Tren Sensor Sepanjang Siklus Tanam (Hari 1–30)", legend=True,
                    xtitle="Umur Tanaman (Hari ke-)", ytitle="Nilai Sensor")
 
