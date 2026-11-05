@@ -66,8 +66,11 @@ def init_db():
             pwd_hash, salt = hash_password("admin123")
             conn.execute(
                 "INSERT INTO users (username, full_name, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)",
-                ("admin", "Administrator Pakcoy", pwd_hash, salt, "Administrator")
+                ("admin", "Admin", pwd_hash, salt, "Administrator")
             )
+            conn.commit()
+        else:
+            conn.execute("UPDATE users SET full_name = 'Admin' WHERE username = 'admin' AND full_name = 'Administrator Pakcoy'")
             conn.commit()
 
 
@@ -167,7 +170,7 @@ def render_auth_page():
 
     is_login_mode = st.session_state["auth_mode"] == "login"
 
-    # CSS Khusus Halaman Autentikasi (SaaS Style, Single Unified Card)
+    # CSS Khusus Halaman Autentikasi (Tema Agronomi Hijau Pakcoy, Single Unified Card)
     st.markdown("""
     <style>
     /* Sembunyikan sidebar, kontrol sidebar, header deploy, dan menu atas saat login */
@@ -181,34 +184,75 @@ def render_auth_page():
         display: none !important;
     }
 
-    /* Background SaaS Modern dengan micro-dot halus & radial gradient */
+    /* Background Agronomi Bersih dengan pola grid halus */
     .stApp {
-        background-color: #f8fafc !important;
+        background-color: #f4f7f4 !important;
         background-image: 
-            radial-gradient(at 0% 0%, rgba(83, 58, 253, 0.05) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
-            radial-gradient(#e2e8f0 1.2px, transparent 1.2px) !important;
-        background-size: 100% 100%, 100% 100%, 28px 28px !important;
+            radial-gradient(at 0% 0%, rgba(21, 128, 61, 0.06) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(13, 148, 136, 0.05) 0px, transparent 50%),
+            radial-gradient(#d5e0d8 1.1px, transparent 1.1px) !important;
+        background-size: 100% 100%, 100% 100%, 26px 26px !important;
     }
 
-    /* Layout terpusat vertikal dan horizontal */
-    .main .block-container {
+    /* Layout terpusat vertikal dan horizontal penuh (Desktop, Android, iOS) */
+    [data-testid="stMainBlockContainer"],
+    .block-container {
         max-width: 100% !important;
-        padding-top: 4.5rem !important;
-        padding-bottom: 3.5rem !important;
+        min-height: 100vh !important;
+        min-height: 100dvh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 24px 16px !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
     }
 
-    /* Container Kartu Autentikasi Tunggal - Ukuran Proporsional & Elegan */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {
+        width: 100% !important;
+        max-width: 425px !important;
+        margin: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+    }
+
+    /* Container Kartu Autentikasi Tunggal */
     .st-key-auth_card,
     div[class*="st-key-auth_card"] {
-        max-width: 460px !important;
+        max-width: 425px !important;
         width: 100% !important;
         margin: 0 auto !important;
         background-color: #ffffff !important;
-        border: 1px solid rgba(226, 232, 240, 0.9) !important;
-        border-radius: 24px !important;
-        padding: 42px 38px 36px 38px !important;
-        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(226, 232, 240, 0.8) !important;
+        border: 1px solid #d5e2d9 !important;
+        border-top: 4px solid #15803d !important;
+        border-radius: 14px !important;
+        padding: 34px 32px 26px 32px !important;
+        box-shadow: 0 14px 34px -8px rgba(17, 28, 22, 0.08) !important;
+        box-sizing: border-box !important;
+    }
+
+    @media (max-width: 480px) {
+        [data-testid="stMainBlockContainer"],
+        .block-container {
+            padding: 16px 12px !important;
+        }
+        .st-key-auth_card,
+        div[class*="st-key-auth_card"] {
+            padding: 26px 20px 22px 20px !important;
+            border-radius: 12px !important;
+        }
+        .auth-title {
+            font-size: 19px !important;
+        }
+        .auth-sub {
+            font-size: 12.5px !important;
+        }
+        /* Cegah auto-zoom pada iOS Safari saat mengetuk input */
+        .st-key-auth_card input {
+            font-size: 16px !important;
+        }
     }
 
     /* Hilangkan border dan padding bawaan stForm di dalam kartu */
@@ -223,94 +267,104 @@ def render_auth_page():
     /* Header di dalam kartu */
     .auth-header {
         text-align: center;
-        margin-bottom: 26px;
+        margin-bottom: 22px;
     }
     .auth-icon-circle {
-        width: 64px;
-        height: 64px;
-        border-radius: 20px;
-        background: linear-gradient(135deg, #eeedfe 0%, #e0e7ff 100%);
-        color: #533afd;
+        width: 60px;
+        height: 60px;
+        border-radius: 14px;
+        background-color: #ffffff;
+        color: #15803d;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 14px;
-        border: 1px solid rgba(83, 58, 253, 0.15);
-        box-shadow: 0 8px 20px -4px rgba(83, 58, 253, 0.2);
+        margin-bottom: 12px;
+        padding: 4px;
+        overflow: hidden;
+        border: 1.5px solid #bbf7d0;
+        box-shadow: 0 4px 12px rgba(21, 128, 61, 0.10);
     }
     .auth-title {
-        font-size: 24px;
-        font-weight: 800;
-        color: #0d253d;
-        letter-spacing: -0.03em;
-        margin-bottom: 6px;
+        font-size: 21px;
+        font-weight: 700;
+        color: #111c16;
+        letter-spacing: -0.02em;
+        margin-bottom: 5px;
         line-height: 1.25;
     }
     .auth-sub {
-        font-size: 14px;
-        color: #64748d;
-        line-height: 1.5;
+        font-size: 13px;
+        color: #5c6f64;
+        line-height: 1.45;
         margin: 0;
         font-weight: 400;
     }
 
-    /* Input styling - Nyaman, modern, dan kokoh */
+    /* Input styling (Single Clean Border on Root Element) */
     .st-key-auth_card [data-testid="stTextInput"] {
-        margin-bottom: 14px !important;
+        margin-bottom: 12px !important;
     }
     .st-key-auth_card [data-testid="stTextInput"] label p {
-        font-size: 13.5px !important;
+        font-size: 13px !important;
         font-weight: 600 !important;
-        color: #1e293b !important;
-        margin-bottom: 6px !important;
+        color: #26382f !important;
+        margin-bottom: 4px !important;
+    }
+    .st-key-auth_card [data-testid="stTextInput"] [data-testid="stTextInputRootElement"],
+    .st-key-auth_card [data-testid="stTextInput"] [class*="e1bh1cux2"] {
+        border-radius: 9px !important;
+        border: 1px solid #b8c9be !important;
+        background-color: #f9fbf9 !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        box-shadow: 0 1px 2px rgba(17, 28, 22, 0.02) !important;
+        transition: all 0.18s ease !important;
+    }
+    .st-key-auth_card [data-testid="stTextInput"] [data-testid="stTextInputRootElement"]:focus-within,
+    .st-key-auth_card [data-testid="stTextInput"] [class*="e1bh1cux2"]:focus-within {
+        background-color: #ffffff !important;
+        border-color: #15803d !important;
+        box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.14) !important;
     }
     .st-key-auth_card input {
-        border-radius: 12px !important;
-        border: 1.5px solid #d0d7de !important;
-        background-color: #f8fafc !important;
-        font-size: 14.5px !important;
-        height: 46px !important;
-        padding: 0 14px !important;
-        color: #0f172a !important;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-    .st-key-auth_card input:focus {
-        background-color: #ffffff !important;
-        border-color: #533afd !important;
-        box-shadow: 0 0 0 4px rgba(83, 58, 253, 0.14) !important;
+        border: none !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
         outline: none !important;
+        font-size: 13.8px !important;
+        height: 40px !important;
+        padding: 0 13px !important;
+        color: #111c16 !important;
     }
 
     /* Tombol Utama (Login / Buat Akun) */
     .st-key-auth_card [data-testid="stFormSubmitButton"] button {
-        border-radius: 12px !important;
-        height: 48px !important;
+        border-radius: 9px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        max-height: 42px !important;
         padding: 0 18px !important;
         font-weight: 600 !important;
-        font-size: 15px !important;
-        letter-spacing: -0.01em !important;
-        background: linear-gradient(135deg, #533afd 0%, #4338ca 100%) !important;
+        font-size: 14px !important;
+        background-color: #15803d !important;
         color: #ffffff !important;
-        border: none !important;
-        box-shadow: 0 4px 14px rgba(83, 58, 253, 0.28) !important;
-        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        margin-top: 10px !important;
+        border: 1px solid #166534 !important;
+        box-shadow: 0 2px 6px rgba(20, 83, 45, 0.18) !important;
+        transition: all 0.18s ease !important;
+        margin-top: 6px !important;
         width: 100% !important;
     }
     .st-key-auth_card [data-testid="stFormSubmitButton"] button:hover {
-        background: linear-gradient(135deg, #4732db 0%, #3730a3 100%) !important;
-        box-shadow: 0 6px 20px rgba(83, 58, 253, 0.38) !important;
-        transform: translateY(-1px) !important;
-    }
-    .st-key-auth_card [data-testid="stFormSubmitButton"] button:active {
-        transform: translateY(0px) !important;
+        background-color: #166534 !important;
+        border-color: #14532d !important;
+        box-shadow: 0 4px 12px rgba(20, 83, 45, 0.26) !important;
     }
 
     /* Divider Pemisah */
     .auth-divider {
         position: relative;
         text-align: center;
-        margin: 22px 0 16px 0;
+        margin: 18px 0 10px 0;
     }
     .auth-divider::before {
         content: "";
@@ -319,14 +373,14 @@ def render_auth_page():
         left: 0;
         right: 0;
         height: 1px;
-        background: #e2e8f0;
+        background: #dce5de;
     }
     .auth-divider span {
         position: relative;
         background: #ffffff;
         padding: 0 14px;
-        font-size: 12.5px;
-        color: #94a3b8;
+        font-size: 12px;
+        color: #6b7f73;
         font-weight: 500;
         text-transform: lowercase;
     }
@@ -342,13 +396,18 @@ def render_auth_page():
         border: none !important;
         outline: none !important;
         box-shadow: none !important;
-        border-radius: 10px !important;
-        color: #533afd !important;
-        font-size: 14px !important;
+        border-radius: 8px !important;
+        color: #15803d !important;
+        font-size: 13.5px !important;
         font-weight: 600 !important;
-        padding: 10px 16px !important;
+        padding: 6px 14px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
         margin: 0 auto !important;
-        display: block !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         width: 100% !important;
         text-align: center !important;
         cursor: pointer !important;
@@ -359,132 +418,107 @@ def render_auth_page():
     .stApp .st-key-btn_toggle_mode button:hover,
     .st-key-btn_toggle_mode button:hover,
     div[class*="st-key-btn_toggle_mode"] button:hover {
-        background-color: #f5f3ff !important;
-        color: #3730a3 !important;
+        background-color: #f0fdf4 !important;
+        color: #14532d !important;
         text-decoration: underline !important;
-    }
-
-    /* Catatan Keamanan Footer */
-    .auth-security-footer {
-        font-size: 12px;
-        color: #94a3b8;
-        text-align: center;
-        margin-top: 24px;
-        line-height: 1.5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    col_l, col_center, col_r = st.columns([1, 1.5, 1])
+    with st.container(key="auth_card"):
+        # Tampilkan notifikasi jika ada pesan sukses dari registrasi
+        if "registered_success_msg" in st.session_state:
+            st.success(st.session_state.pop("registered_success_msg"))
 
-    with col_center:
-        with st.container(key="auth_card"):
-            # Tampilkan notifikasi jika ada pesan sukses dari registrasi
-            if "registered_success_msg" in st.session_state:
-                st.success(st.session_state.pop("registered_success_msg"))
+        if is_login_mode:
+            # HEADER LOGIN
+            st.markdown(
+                f'<div class="auth-header">'
+                f'<div class="auth-icon-circle">{ui.brand_logo_html(52)}</div>'
+                f'<div class="auth-title">Smart Farming Pakcoy</div>'
+                f'<div class="auth-sub">Sistem Monitoring Sensor &amp; Analitik Budidaya Tanaman Pakcoy</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
-            if is_login_mode:
-                # HEADER LOGIN
-                st.markdown(
-                    f'<div class="auth-header">'
-                    f'<div class="auth-icon-circle">{ui.icon("sprout", 28, color="#533afd")}</div>'
-                    f'<div class="auth-title">Smart Farming Pakcoy</div>'
-                    f'<div class="auth-sub">Masuk ke sistem monitoring sensor &amp; AI budidaya</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
+            # FORM LOGIN
+            with st.form("form_login", clear_on_submit=False):
+                username_in = st.text_input(
+                    "Username",
+                    placeholder="Masukkan username Anda",
+                    key="login_username"
+                ).strip()
+                password_in = st.text_input(
+                    "Kata Sandi",
+                    type="password",
+                    placeholder="Masukkan kata sandi",
+                    key="login_password"
                 )
 
-                # FORM LOGIN
-                with st.form("form_login", clear_on_submit=False):
-                    username_in = st.text_input(
-                        "Username",
-                        placeholder="Masukkan username Anda",
-                        key="login_username"
-                    ).strip()
-                    password_in = st.text_input(
-                        "Kata Sandi",
-                        type="password",
-                        placeholder="Masukkan kata sandi",
-                        key="login_password"
-                    )
+                btn_login = st.form_submit_button("Masuk ke Sistem", type="primary", use_container_width=True)
 
-                    btn_login = st.form_submit_button("Masuk ke Sistem", type="primary", use_container_width=True)
+                if btn_login:
+                    success, user_data, msg = authenticate(username_in, password_in)
+                    if success:
+                        st.success(f"Selamat datang kembali, {user_data['full_name']}!")
+                        login_user(user_data)
+                    else:
+                        st.error(msg)
 
-                    if btn_login:
-                        success, user_data, msg = authenticate(username_in, password_in)
-                        if success:
-                            st.success(f"Selamat datang kembali, {user_data['full_name']}!")
-                            login_user(user_data)
+            # DIVIDER
+            st.markdown(
+                '<div class="auth-divider"><span>atau</span></div>',
+                unsafe_allow_html=True
+            )
+
+            # TULISAN BUAT AKUN DI BAWAH TOMBOL LOGIN
+            if st.button("Belum punya akun? Buat Akun Baru →", key="btn_toggle_mode", use_container_width=True):
+                st.session_state["auth_mode"] = "register"
+                st.rerun()
+
+        else:
+            # HEADER REGISTRASI
+            st.markdown(
+                f'<div class="auth-header">'
+                f'<div class="auth-icon-circle">{ui.brand_logo_html(52)}</div>'
+                f'<div class="auth-title">Buat Akun Baru</div>'
+                f'<div class="auth-sub">Daftarkan akun untuk mengakses sistem monitoring pakcoy</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+            # FORM REGISTRASI
+            with st.form("form_register", clear_on_submit=False):
+                reg_name = st.text_input("Nama Lengkap", placeholder="Contoh: Muhammad Bukhori", key="reg_name").strip()
+                reg_user = st.text_input("Username", placeholder="Contoh: bukhori (huruf kecil & angka)", key="reg_user").strip()
+                reg_pwd = st.text_input("Kata Sandi", type="password", placeholder="Minimal 6 karakter", key="reg_pwd")
+                reg_pwd2 = st.text_input("Konfirmasi Kata Sandi", type="password", placeholder="Ketik ulang kata sandi", key="reg_pwd2")
+
+                btn_register = st.form_submit_button("Buat Akun Sekarang", type="primary", use_container_width=True)
+
+                if btn_register:
+                    if reg_pwd != reg_pwd2:
+                        st.error("Konfirmasi kata sandi tidak cocok. Silakan periksa kembali.")
+                    else:
+                        ok, msg = register_user(reg_user, reg_name, reg_pwd)
+                        if ok:
+                            st.session_state["registered_success_msg"] = "Akun berhasil dibuat! Silakan masuk dengan akun baru Anda."
+                            st.session_state["login_username"] = reg_user
+                            st.session_state["auth_mode"] = "login"
+                            st.rerun()
                         else:
                             st.error(msg)
 
-                # DIVIDER
-                st.markdown(
-                    '<div class="auth-divider"><span>atau</span></div>',
-                    unsafe_allow_html=True
-                )
+            # DIVIDER
+            st.markdown(
+                '<div class="auth-divider"><span>atau</span></div>',
+                unsafe_allow_html=True
+            )
 
-                # TULISAN BUAT AKUN DI BAWAH TOMBOL LOGIN
-                if st.button("Belum punya akun? Buat Akun Baru →", key="btn_toggle_mode", use_container_width=True):
-                    st.session_state["auth_mode"] = "register"
-                    st.rerun()
-
-
-            else:
-                # HEADER REGISTRASI
-                st.markdown(
-                    f'<div class="auth-header">'
-                    f'<div class="auth-icon-circle">{ui.icon("user-plus", 28, color="#533afd")}</div>'
-                    f'<div class="auth-title">Buat Akun Baru</div>'
-                    f'<div class="auth-sub">Daftarkan akun untuk mengakses sistem monitoring</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-
-                # FORM REGISTRASI
-                with st.form("form_register", clear_on_submit=False):
-                    reg_name = st.text_input("Nama Lengkap", placeholder="Contoh: Muhammad Bukhori", key="reg_name").strip()
-                    reg_user = st.text_input("Username", placeholder="Contoh: bukhori (huruf kecil & angka)", key="reg_user").strip()
-                    reg_pwd = st.text_input("Kata Sandi", type="password", placeholder="Minimal 6 karakter", key="reg_pwd")
-                    reg_pwd2 = st.text_input("Konfirmasi Kata Sandi", type="password", placeholder="Ketik ulang kata sandi", key="reg_pwd2")
-
-                    btn_register = st.form_submit_button("Buat Akun Sekarang", type="primary", use_container_width=True)
-
-                    if btn_register:
-                        if reg_pwd != reg_pwd2:
-                            st.error("Konfirmasi kata sandi tidak cocok. Silakan periksa kembali.")
-                        else:
-                            ok, msg = register_user(reg_user, reg_name, reg_pwd)
-                            if ok:
-                                st.session_state["registered_success_msg"] = "Akun berhasil dibuat! Silakan masuk dengan akun baru Anda."
-                                st.session_state["login_username"] = reg_user
-                                st.session_state["auth_mode"] = "login"
-                                st.rerun()
-                            else:
-                                st.error(msg)
-
-                # DIVIDER
-                st.markdown(
-                    '<div class="auth-divider"><span>atau</span></div>',
-                    unsafe_allow_html=True
-                )
-
-                # TULISAN KEMBALI KE LOGIN
-                if st.button("Sudah punya akun? Masuk ke Akun ←", key="btn_toggle_mode", use_container_width=True):
-                    st.session_state["auth_mode"] = "login"
-                    st.rerun()
-
-        # CATATAN KEAMANAN TERENKRIPSI DI BAWAH KARTU
-        st.markdown(
-            f'<div class="auth-security-footer">'
-            f'{ui.icon("lock", 13, color="#94a3b8")} Enkripsi PBKDF2-HMAC-SHA256 &bull; Smart Farming Pakcoy'
-            f'</div>',
-            unsafe_allow_html=True
-        )
+            # TULISAN KEMBALI KE LOGIN
+            if st.button("Sudah punya akun? Masuk ke Akun ←", key="btn_toggle_mode", use_container_width=True):
+                st.session_state["auth_mode"] = "login"
+                st.rerun()
 
 
 def render_sidebar_user_profile():
@@ -493,71 +527,104 @@ def render_sidebar_user_profile():
     if not user:
         return
 
-    name = user.get("full_name", "Pengguna")
-    username = user.get("username", "user")
-    role = user.get("role", "Pengguna")
-
-    # Inisial avatar (2 huruf)
-    parts = name.strip().split()
-    initials = (parts[0][0] + parts[-1][0]).upper() if len(parts) > 1 else name[:2].upper()
+    raw_name = user.get("full_name", "Admin")
+    username = user.get("username", "admin")
+    role = user.get("role", "Administrator")
+    if username == "admin" or raw_name == "Administrator Pakcoy":
+        name = "Admin"
+        user["full_name"] = "Admin"
+    else:
+        name = raw_name
+    user_icon_svg = ui.icon("user", 18, color="#15803d")
 
     st.sidebar.markdown("""
     <style>
     .user-profile-box {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 11px;
         padding: 10px 12px;
         background: #ffffff;
-        border: 1px solid #e3e8ee;
-        border-radius: 12px;
-        margin-top: 14px;
-        margin-bottom: 10px;
+        border: 1px solid #d5e0d8;
+        border-radius: 10px;
+        margin-top: 2px;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03);
     }
     .user-avatar {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #533afd 0%, #665efd 100%);
-        color: #ffffff;
-        font-size: 13.5px;
-        font-weight: 700;
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #15803d;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        letter-spacing: 0.5px;
+    }
+    .user-avatar svg {
+        stroke: #15803d !important;
     }
     .user-info-text {
         overflow: hidden;
         flex-grow: 1;
-        line-height: 1.35;
+        line-height: 1.3;
+    }
+    .user-name-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
     }
     .user-name-title {
-        font-size: 13px;
-        font-weight: 600;
-        color: #0d253d;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #111c16;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
+    .user-online-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #15803d;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        padding: 1px 7px;
+        border-radius: 999px;
+        flex-shrink: 0;
+    }
+    .user-online-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #22c55e;
+    }
     .user-meta-sub {
         font-size: 11.5px;
-        color: #64748d;
+        color: #5c6f64;
+        margin-top: 2px;
     }
     </style>
     """, unsafe_allow_html=True)
 
     st.sidebar.markdown(
         f'<div class="user-profile-box">'
-        f'<div class="user-avatar">{initials}</div>'
+        f'<div class="user-avatar">{user_icon_svg}</div>'
         f'<div class="user-info-text">'
-        f'<div class="user-name-title">{name}</div>'
-        f'<div class="user-meta-sub">@{username} · {role}</div>'
+        f'<div class="user-name-row">'
+        f'<span class="user-name-title">{ui._e(name)}</span>'
+        f'<span class="user-online-pill"><span class="user-online-dot"></span>Aktif</span>'
+        f'</div>'
+        f'<div class="user-meta-sub">@{ui._e(username)} &middot; {ui._e(role)}</div>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True
     )
 
-    if st.sidebar.button("Keluar (Logout)", key="btn_logout", use_container_width=True):
+    if st.sidebar.button("Keluar Akun", key="btn_logout", use_container_width=True):
         logout()

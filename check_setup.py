@@ -33,7 +33,7 @@ for name, pip in [("streamlit", "streamlit"), ("pandas", "pandas"), ("numpy", "n
         out("FAIL", f"{name} belum terpasang ({e.__class__.__name__}). Jalankan: pip install {pip}")
 
 # 2) file
-for f in ["app.py", "utils.py", "ui.py", "charts.py", "data/data_training.csv", "data/data_asli.csv"]:
+for f in ["app.py", "utils.py", "ui.py", "charts.py", "data/data_training_30hari.csv", "data/data_asli_30hari.csv"]:
     out("OK" if (ROOT / f).exists() else "FAIL", f"file {f}")
 model_files = ["model_lstm_klasifikasi.keras", "model_lstm_forecast.keras", "config_lstm.json",
                "model_cnn.keras", "config_cnn.json"]
@@ -83,9 +83,12 @@ if "tensorflow" in mods and utils:
 # 5) data
 if "pandas" in mods and utils:
     import pandas as pd
-    d = pd.read_csv(ROOT / "data" / "data_training.csv")
+    data_target = ROOT / "data" / "data_training_30hari.csv"
+    if not data_target.exists():
+        data_target = ROOT / "data" / "data_training.csv"
+    d = pd.read_csv(data_target)
     missing = [c for c in utils.REQUIRED_COLS if c not in d.columns]
-    out("OK" if not missing else "FAIL", f"data_training.csv: {len(d):,} baris, kolom wajib {'lengkap' if not missing else 'kurang: ' + str(missing)}")
+    out("OK" if not missing else "FAIL", f"{data_target.name}: {len(d):,} baris, kolom wajib {'lengkap' if not missing else 'kurang: ' + str(missing)}")
 
 print()
 if fails:

@@ -27,11 +27,11 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 
 2. STRUKTUR DAN CARA KERJA 7 HALAMAN UTAMA
 1. Dashboard:
-   - Menampilkan kartu KPI (Total Data, Rata-rata Kelembapan Tanah, Rata-rata Suhu, Rata-rata Kematangan, Rentang HST/DAP).
+   - Menampilkan kartu KPI (Total Data, Rata-rata Kelembapan Tanah, Rata-rata Suhu, Rata-rata Kematangan, Umur Tanaman 1–30 hari).
    - Panel monitoring sensor live otomatis (disimulasikan berputar per 1.5 detik) yang memvisualisasikan data sensor bergerak, status kondisi tanah, rekomendasi irigasi, dan status pompa.
    - Grafik donut distribusi kondisi tanah dan bar chart tahap pertumbuhan.
 2. Eksplorasi Data:
-   - Analisis statistik mendalam dataset pakcoy (Siklus perkembangan tanaman pakcoy 30 siklus dan Data asli 40 hari).
+   - Analisis statistik mendalam dataset pakcoy (Siklus perkembangan tanaman pakcoy 30 siklus dan Data asli 30 hari).
    - Scatter plot hubungan kelembapan tanah vs suhu dengan garis batas histeresis kering (<55%) dan basah (>=76%).
    - Kurva akumulasi kematangan kumulatif dan tabel cuplikan data dengan fitur unduh CSV.
 3. Monitoring Realtime:
@@ -46,7 +46,7 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 5. Prediksi 4 Hari:
    - Forecasting multi-langkah ke depan (12 langkah waktu pembacaan = 4 hari x 3 waktu: 08:00, 12:00, 16:00).
    - Visualisasi tren proyeksi kelembapan, suhu, dan tingkat kematangan (0-100%).
-   - Tabel proyeksi lengkap beserta tanggal estimasi panen ideal.
+   - Tabel proyeksi lengkap beserta estimasi panen ideal.
 6. Model CNN (Scan Foto):
    - Klasifikasi tahap pertumbuhan berdasarkan foto tanaman pakcoy menggunakan arsitektur MobileNetV2 (resolusi 224x224 RGB).
    - Segmentasi warna HSV untuk mengukur tutupan daun hijau (%), kerapatan rumpun daun, estimasi bentang fisik daun dalam centimeter (cm), dan persentase daun kekuningan (yellowing %).
@@ -56,14 +56,15 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
    - Indeks kesiapan panen kombinasi, saran agronomi, dan fitur unduh laporan perkembangan lengkap dalam format Markdown (.md).
 
 3. STRUKTUR DATASET
-- Kolom wajib: Day, DAP (Days After Planting / Hari Setelah Tanam, rentang 0-40 hari), Time (08:00, 12:00, 16:00), Soil Moisture (%), Temperature (°C), Soil Condition (Wet, Optimal, Dry), Ground Truth Maturity Level (%), Ground Truth Criteria.
+- Umur tanaman pakcoy berlangsung selama 30 hari (Hari ke-1 s.d. Hari ke-30, dengan masa panen optimal di Hari ke-30).
+- Kolom wajib: Day (Hari ke-1 s.d. 30), Time (08:00, 12:00, 16:00), Soil Moisture (%), Temperature (°C), Soil Condition (Wet, Optimal, Dry), Ground Truth Maturity Level (%), Ground Truth Criteria.
 - Data bawaan aplikasi:
-  - data_training.csv: 30 siklus perkembangan tanaman pakcoy dari masa pertumbuhan bibit hingga panen (3.600 baris data).
-  - data_asli.csv: 1 siklus budidaya lapangan nyata selama 40 hari (120 baris data, 3 kali pembacaan per hari).
+  - data_training_30hari.csv: 30 siklus perkembangan tanaman pakcoy dari masa pertumbuhan bibit hingga panen 30 hari (2.700 baris data).
+  - data_asli_30hari.csv: 1 siklus budidaya lapangan nyata selama 30 hari (90 baris data, 3 kali pembacaan per hari).
 - 3 Tahap pertumbuhan utama:
   1. masa_pertumbuhan: fase bibit hingga vegetatif awal, daun kecil hingga mulai melebar, maturity < 66.5%.
   2. mendekati_panen: roset mulai memadat, tangkai daun menebal, maturity 66.5% - 89.0%.
-  3. siap_panen: tanaman rimbun, daun penuh dan tangkai tebal, panen sekitar 30-40 DAP, maturity >= 89.0%.
+  3. siap_panen: tanaman rimbun, daun penuh dan tangkai tebal, panen di hari ke-30, maturity >= 89.0%.
 
 4. ARSITEKTUR MODEL & METRIK EVALUASI
 - LSTM Klasifikasi (model_lstm_klasifikasi.keras):
@@ -86,7 +87,7 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
   - Merupakan indeks persentase (0–100%) perkembangan fisiologis tanaman pakcoy dari fase bibit hingga siap panen.
   - Masa Pertumbuhan: < 66.5% (fase bibit hingga vegetatif awal).
   - Mendekati Panen: 66.5% s/d 89.0% (roset mulai memadat, tangkai menebal).
-  - Siap Panen: >= 89.0% (tanaman rimbun sempurna, siap dipetik sekitar 30-40 DAP).
+  - Siap Panen: >= 89.0% (tanaman rimbun sempurna, siap dipanen pada umur sekitar 30 hari).
 - Batas kelembapan tanah (aturan histeresis):
   - Dry (Kering): < 55.0% (memicu pompa penyiraman aktif).
   - Optimal (Ideal): 55.0% s/d 76.0%.
@@ -97,6 +98,7 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 6. KETERBATASAN SISTEM (CATATAN KEJUJURAN)
 - Monitoring realtime pada website ini adalah pemutaran ulang siklus perkembangan sensor, bukan pembacaan perangkat keras langsung.
 - Data latih LSTM mencakup 30 siklus perkembangan pakcoy komprehensif, performa pada data asli (73%) lebih rendah daripada data multi-siklus (86.8%).
+- Model machine learning dilatih pada data dengan resolusi pembacaan waktu tertentu sehingga proyeksi masa depan bersifat estimasi.
 - Estimasi ukuran luas daun dalam cm² hanya valid jika foto memiliki benda pembanding dan skala piksel per cm diisi dengan benar.
 - Foto tanaman dan data sensor dalam demo tidak dijamin berasal dari tanaman fisik yang sama.
 """
@@ -213,34 +215,34 @@ def get_gemini_client():
 def render_setup_guide():
     """Tampilan kartu panduan rapi jika API key belum diatur."""
     guide_html = """
-    <div style="background:#ffffff; border:1px solid #e3e8ee; border-radius:16px; padding:24px 28px; margin:16px auto; box-shadow:rgba(0,55,112,0.08) 0 8px 24px; max-width:920px;">
+    <div style="background:#ffffff; border:1px solid #dce5de; border-left:4px solid #15803d; border-radius:10px; padding:24px 28px; margin:16px auto; box-shadow:rgba(17,28,22,0.05) 0 4px 16px; max-width:920px;">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-        <span style="font-size:17px; font-weight:600; color:#0d253d;">Panduan Menghubungkan Gemini API</span>
+        <span style="font-size:17px; font-weight:600; color:#111c16;">Panduan Menghubungkan Gemini API</span>
       </div>
-      <p style="font-size:14px; color:#273951; line-height:1.6; margin-bottom:16px;">
+      <p style="font-size:14px; color:#2c3e35; line-height:1.6; margin-bottom:16px;">
         Halaman <strong>AI Assistant</strong> memerlukan <strong>Gemini API Key</strong> agar dapat berdialog dan menjawab pertanyaan seputar sistem Smart Farming Pakcoy maupun agronomi budidaya.
       </p>
       
-      <div style="font-size:14px; font-weight:600; color:#0d253d; margin-bottom:6px;">1. Pengaturan di Komputer Lokal:</div>
-      <ol style="font-size:13.5px; color:#273951; line-height:1.6; margin-top:0; padding-left:20px;">
-        <li>Buka file <code style="background:#f6f9fc; padding:2px 6px; border-radius:4px; border:1px solid #e3e8ee; font-size:12.5px;">.streamlit/secrets.toml</code></li>
-        <li>Dapatkan API Key gratis di Google AI Studio (<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#533afd; text-decoration:none;">aistudio.google.com</a>).</li>
+      <div style="font-size:14px; font-weight:600; color:#111c16; margin-bottom:6px;">1. Pengaturan di Komputer Lokal:</div>
+      <ol style="font-size:13.5px; color:#2c3e35; line-height:1.6; margin-top:0; padding-left:20px;">
+        <li>Buka file <code style="background:#f6f8f6; padding:2px 6px; border-radius:4px; border:1px solid #dce5de; font-size:12.5px;">.streamlit/secrets.toml</code></li>
+        <li>Dapatkan API Key gratis di Google AI Studio (<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#15803d; text-decoration:none; font-weight:500;">aistudio.google.com</a>).</li>
         <li>Masukkan API Key Anda:
-          <pre style="background:#f6f9fc; border:1px solid #e3e8ee; border-radius:6px; padding:8px 12px; margin:6px 0; font-size:12.5px; color:#0d253d;">GEMINI_API_KEY = "kunci_api_asli_anda"</pre>
+          <pre style="background:#f6f8f6; border:1px solid #dce5de; border-radius:6px; padding:8px 12px; margin:6px 0; font-size:12.5px; color:#111c16;">GEMINI_API_KEY = "kunci_api_asli_anda"</pre>
         </li>
       </ol>
 
-      <div style="font-size:14px; font-weight:600; color:#0d253d; margin-top:14px; margin-bottom:6px;">2. Pengaturan di Streamlit Cloud (Hosting):</div>
-      <ol style="font-size:13.5px; color:#273951; line-height:1.6; margin-top:0; padding-left:20px;">
+      <div style="font-size:14px; font-weight:600; color:#111c16; margin-top:14px; margin-bottom:6px;">2. Pengaturan di Streamlit Cloud (Hosting):</div>
+      <ol style="font-size:13.5px; color:#2c3e35; line-height:1.6; margin-top:0; padding-left:20px;">
         <li>Buka dashboard aplikasi Anda di <strong>share.streamlit.io</strong>.</li>
         <li>Pilih menu <strong>App Settings</strong> &gt; <strong>Secrets</strong>.</li>
         <li>Tambahkan baris berikut lalu simpan:
-          <pre style="background:#f6f9fc; border:1px solid #e3e8ee; border-radius:6px; padding:8px 12px; margin:6px 0; font-size:12.5px; color:#0d253d;">GEMINI_API_KEY = "kunci_api_asli_anda"</pre>
+          <pre style="background:#f6f8f6; border:1px solid #dce5de; border-radius:6px; padding:8px 12px; margin:6px 0; font-size:12.5px; color:#111c16;">GEMINI_API_KEY = "kunci_api_asli_anda"</pre>
         </li>
       </ol>
 
-      <div style="font-size:12px; color:#64748d; margin-top:16px; padding-top:12px; border-top:1px solid #e3e8ee;">
-        Keamanan: File <code style="background:#f6f9fc; padding:1px 5px; border-radius:4px; border:1px solid #e3e8ee;">.streamlit/secrets.toml</code> sudah masuk dalam <code style="background:#f6f9fc; padding:1px 5px; border-radius:4px; border:1px solid #e3e8ee;">.gitignore</code> sehingga kredensial aman dan tidak akan terunggah ke repositori GitHub.
+      <div style="font-size:12px; color:#5c6f64; margin-top:16px; padding-top:12px; border-top:1px solid #dce5de;">
+        Keamanan: File <code style="background:#f6f8f6; padding:1px 5px; border-radius:4px; border:1px solid #dce5de;">.streamlit/secrets.toml</code> sudah masuk dalam <code style="background:#f6f8f6; padding:1px 5px; border-radius:4px; border:1px solid #dce5de;">.gitignore</code> sehingga kredensial aman dan tidak akan terunggah ke repositori GitHub.
       </div>
     </div>
     """
@@ -249,7 +251,7 @@ def render_setup_guide():
 
 def render_ai_assistant():
     """Render antarmuka AI Assistant berbingkai profesional di Streamlit."""
-    ui.hero("AI Assistant", "Tanya jawab tentang sistem monitoring dan budidaya pakcoy.", "message-square")
+    ui.hero("Asisten Kebun AI", "Tanya jawab seputar cara merawat pakcoy, kondisi tanah, dan panduan penggunaan aplikasi.", "message-square")
 
     client, primary_model, backup_model, raw_key = get_gemini_client()
     if client is None:
@@ -261,13 +263,13 @@ def render_ai_assistant():
         st.session_state["ai_chat_history"] = []
 
     SUGGESTIONS = [
-        "Apa fungsi model LSTM di aplikasi ini?",
-        "Bagaimana cara membaca hasil Scan Gabungan?",
-        "Apa arti kondisi tanah Dry, Optimal, dan Wet?",
-        "Bagaimana cara kerja prediksi 4 hari?",
+        "Berapa kelembapan dan suhu ideal untuk merawat pakcoy?",
+        "Bagaimana cara membaca hasil Diagnosis Lengkap?",
+        "Apa arti kondisi tanah Kering, Ideal, dan Terlalu Basah?",
+        "Kapan tanaman pakcoy siap dipanen dan apa ciri-cirinya?",
     ]
 
-    # BINGKAI UTAMA SATU KARTU (Latar putih, border #e3e8ee, radius 16px, shadow)
+    # BINGKAI UTAMA SATU KARTU
     with st.container(key="chat_main_card"):
         # 1. HEADER BINGKAI (64px, icon 36px, title, sub, trash button)
         with st.container(key="chat_header_row"):
@@ -275,10 +277,10 @@ def render_ai_assistant():
             with c_left:
                 st.markdown(
                     f'<div class="chat-header-info">'
-                    f'<div class="chat-header-icon-box">{ui.icon("message-square", 18, color="#533afd")}</div>'
+                    f'<div class="chat-header-icon-box">{ui.icon("message-square", 18, color="#15803d")}</div>'
                     f'<div>'
-                    f'<div class="chat-header-title">AI Assistant</div>'
-                    f'<div class="chat-header-sub">Tanya jawab tentang sistem dan budidaya pakcoy</div>'
+                    f'<div class="chat-header-title">Asisten Kebun AI</div>'
+                    f'<div class="chat-header-sub">Konsultasi perawatan tanaman pakcoy & panduan sistem</div>'
                     f'</div>'
                     f'</div>',
                     unsafe_allow_html=True
@@ -295,7 +297,7 @@ def render_ai_assistant():
             if not st.session_state["ai_chat_history"] and not st.session_state.get("pending_prompt"):
                 st.markdown(
                     f'<div class="chat-empty-state">'
-                    f'<div class="chat-empty-icon-box">{ui.icon("sparkles", 22, color="#533afd")}</div>'
+                    f'<div class="chat-empty-icon-box" style="background:#ffffff;border:1px solid #bbf7d0;padding:3px;">{ui.brand_logo_html(34)}</div>'
                     f'<div class="chat-empty-title">Apa yang ingin Anda ketahui?</div>'
                     f'<div class="chat-empty-sub">Pilih salah satu saran pertanyaan di bawah atau ketik pertanyaan seputar budidaya dan sistem pakcoy.</div>'
                     f'</div>',

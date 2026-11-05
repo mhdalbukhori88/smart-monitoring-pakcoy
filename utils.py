@@ -18,7 +18,16 @@ JAM_MAP = {"08:00": 0, "12:00": 1, "16:00": 2}
 JAM_LIST = ["08:00", "12:00", "16:00"]
 SENSOR_COLS = ["Soil Moisture (%)", "Temperature (°C)"]
 MATURITY_COL = "Ground Truth Maturity Level (%)"
-REQUIRED_COLS = ["Day", "DAP", "Time", "Soil Moisture (%)", "Temperature (°C)",
+# Konstanta terpusat siklus budidaya tanaman pakcoy (30 hari)
+START_DAY = 1
+HARVEST_DAY = 30
+CYCLE_DAYS = 30
+READINGS_PER_DAY = 3
+CYCLE_LENGTH = CYCLE_DAYS * READINGS_PER_DAY  # 90 pembacaan sensor per siklus
+LABEL_UMUR = "Umur Tanaman (hari)"
+MATURITY_THRESHOLDS = [66.5, 89.0]  # Ambang batas kematangan model LSTM
+
+REQUIRED_COLS = ["Day", "Time", "Soil Moisture (%)", "Temperature (°C)",
                  "Soil Condition", MATURITY_COL, "Ground Truth Criteria"]
 
 DRY_LIMIT = 55.0   # batas kering (%), sama dengan aturan label Dry di Data_Training
@@ -39,7 +48,7 @@ STAGE_INFO = {
         "saran": "Pertahankan penyiraman, kurangi gangguan pada tanaman, dan siapkan jadwal panen.",
     },
     "siap_panen": {
-        "ciri": "Daun lebar dan penuh, tangkai tebal, tanaman rimbun. Pakcoy umumnya dipanen sekitar 30-40 hari setelah tanam.",
+        "ciri": "Daun lebar dan penuh, tangkai tebal, tanaman rimbun. Pakcoy umumnya dipanen sekitar 30 hari setelah tanam.",
         "saran": "Segera panen agar kualitas tidak menurun (daun menguning atau tanaman berbunga jika terlambat).",
     },
 }
