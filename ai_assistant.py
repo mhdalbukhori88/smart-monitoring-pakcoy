@@ -13,8 +13,18 @@ import ui
 
 logger = logging.getLogger("ai_assistant")
 
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_BACKUP_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite"
+DEPRECATED_MODELS = {
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-pro-exp",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-1.0-pro",
+}
 MAX_MESSAGES_PER_SESSION = 30
 MAX_INPUT_CHARS = 1000
 
@@ -191,7 +201,7 @@ def get_gemini_client():
             primary_model = str(st.secrets["GEMINI_MODEL"]).strip()
     except Exception:
         pass
-    if not primary_model:
+    if not primary_model or primary_model in DEPRECATED_MODELS:
         primary_model = GEMINI_MODEL
 
     # Model cadangan
@@ -201,7 +211,7 @@ def get_gemini_client():
             backup_model = str(st.secrets["GEMINI_BACKUP_MODEL"]).strip()
     except Exception:
         pass
-    if not backup_model:
+    if not backup_model or backup_model in DEPRECATED_MODELS:
         backup_model = GEMINI_BACKUP_MODEL
 
     try:
@@ -362,9 +372,10 @@ def render_ai_assistant():
                         temperature=0.3,
                     )
 
-                    models_to_try = [primary_model]
-                    if backup_model and backup_model not in models_to_try:
-                        models_to_try.append(backup_model)
+                    models_to_try = []
+                    for m_name in [primary_model, backup_model, "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+                        if m_name and m_name not in models_to_try:
+                            models_to_try.append(m_name)
 
                     full_reply = ""
                     error_caught = None
@@ -394,9 +405,7 @@ def render_ai_assistant():
                             except errors.ClientError as ce:
                                 error_caught = ce
                                 typing_slot.empty()
-                                if ce.code == 404 and mod_idx == 0:
-                                    logger.warning("Primary model 404. Switching to backup: %s", backup_model)
-                                    break
+                                logger.warning("ClientError on %s (code %s): %s", target_model, getattr(ce, "code", None), ce)
                                 break
                             except errors.ServerError as se:
                                 error_caught = se
@@ -405,14 +414,11 @@ def render_ai_assistant():
                                     logger.info("Rate limit (429) hit. Retrying in 1.5s...")
                                     time.sleep(1.5)
                                     continue
-                                if mod_idx == 0 and len(models_to_try) > 1:
-                                    break
                                 break
                             except Exception as ex:
                                 error_caught = ex
                                 typing_slot.empty()
-                                if mod_idx == 0 and len(models_to_try) > 1:
-                                    break
+                                logger.warning("Exception on %s: %s", target_model, ex)
                                 break
 
                         if success:
