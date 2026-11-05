@@ -1435,7 +1435,7 @@ PAGES = {
     "📡 Monitoring Sensor Live": page_monitoring,
     "🧠 Cek Fase dari Sensor": page_lstm,
     "🔮 Prakiraan 4 Hari": page_forecast,
-    "🖼️ Cek Tanaman dari Foto": page_cnn,
+    "🖼️ Analisis Tanaman (CNN)": page_cnn,
     "🔍 Diagnosis Lengkap": page_scan,
     "Asisten Kebun AI": ai_assistant.render_ai_assistant,
 }
