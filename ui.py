@@ -1985,14 +1985,26 @@ span[class*="Icon"],
 
 .live-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
+  .live-metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
   .live-metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .live-metrics-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3601,6 +3613,24 @@ def banner(kind, text, container=None):
     (container or st).markdown(banner_html(kind, text), unsafe_allow_html=True)
 
 
+def pump_alert_html(kind, message):
+    if kind == "danger":
+        bg, border, color, icn = "#fef2f2", "#fecaca", "#dc2626", "alert-triangle"
+    elif kind == "warn":
+        bg, border, color, icn = "#f0f9ff", "#bae6fd", "#0284c7", "droplets"
+    elif kind == "ok":
+        bg, border, color, icn = "#f0fdf4", "#bbf7d0", "#15803d", "check-circle"
+    else:
+        bg, border, color, icn = "#f8fafc", "#e2e8f0", "#475569", "info"
+    svg = icon(icn, 20, color=color)
+    return (
+        f'<div style="background:{bg};border:1.5px solid {border};border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:14px;">'
+        f'<div style="flex-shrink:0;margin-top:2px;">{svg}</div>'
+        f'<div style="flex:1;font-size:13.5px;color:#1e293b;line-height:1.5;">{message}</div>'
+        f'</div>'
+    )
+
+
 def live_badge_html(active=True):
     cls = "live-badge" if active else "live-badge paused"
     txt = "LIVE TELEMETRY" if active else "SIMULASI DIJEDA"
@@ -3642,20 +3672,20 @@ def _compute_action_advice(moist, temp, mat, stage_label, dry=55.0, wet=76.0):
     mat_val = float(mat)
 
     if m_val < dry:
-        water_status = "Tanah Kering — Perlu Penyiraman"
+        water_status = "Tanah Kering — Pompa Menyala Otomatis"
         water_color = "#dc2626"
         water_bg = "#fef2f2"
-        water_advice = f"Kelembapan ({m_val:.0f}%) di bawah batas aman ({dry:.0f}%). Segera nyalakan pompa air hingga mencapai kisaran ideal 60–75%."
+        water_advice = f"Kelembapan ({m_val:.0f}%) di bawah batas aman ({dry:.0f}%). Pompa air otomatis DINYALAKAN untuk menyiram tanaman pakcoy hingga kelembapan kembali normal."
     elif m_val >= wet:
-        water_status = "Tanah Basah — Hentikan Air"
+        water_status = "Tanah Terlalu Basah — Pompa Dimatikan"
         water_color = "#0284c7"
         water_bg = "#f0f9ff"
-        water_advice = f"Kelembapan ({m_val:.0f}%) melebihi batas basah ({wet:.0f}%). Matikan pompa dan periksa drainase agar akar tidak membusuk."
+        water_advice = f"Kelembapan ({m_val:.0f}%) melebihi kapasitas optimal (≥ {wet:.0f}%). Pompa air otomatis DIMATIKAN untuk mencegah pembusukan akar."
     else:
-        water_status = "Kelembapan Tanah Ideal"
+        water_status = "Kelembapan Ideal — Pompa Siaga / Mati"
         water_color = "#15803d"
         water_bg = "#f0fdf4"
-        water_advice = f"Kelembapan ({m_val:.0f}%) berada di zona ideal ({dry:.0f}–{wet:.0f}%). Tidak perlu penyiraman tambahan saat ini."
+        water_advice = f"Kelembapan ({m_val:.0f}%) berada di zona optimal ({dry:.0f}–{wet:.0f}%). Pompa air dalam mode SIAGA / MATI (hemat air & energi)."
 
     if t_val > 30.0:
         temp_status = "Udara Cukup Terik"
@@ -3730,13 +3760,33 @@ def action_guide_card(moist, temp, mat, stage_label, dry=55.0, wet=76.0, title="
 
 
 def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, moist, temp, cond_str, mat, stage_str, stage_source, dry=55.0, wet=76.0):
-    """Konsol telemetri live terpadu: status header + progress bar + 4 kartu metrik proporsional + 3 rekomendasi tindakan."""
+    """Konsol telemetri live terpadu: status header + progress bar + 5 kartu metrik proporsional + 3 rekomendasi tindakan."""
     adv = _compute_action_advice(moist, temp, mat, stage_str, dry=dry, wet=wet)
     water_status, water_color, water_bg, water_advice = adv["water"]
     temp_status, temp_color, temp_bg, temp_advice = adv["temp"]
     crop_status, crop_color, crop_bg, crop_advice = adv["crop"]
 
     pct_prog = min(100, max(1, int(round((step_idx / max(1, total_steps)) * 100))))
+
+    m_val = float(moist)
+    if m_val < dry:
+        p_badge = "⚡ OTOMATIS MENYALA"
+        p_val = "MENYALA"
+        p_color = "#dc2626"
+        p_bg = "#fef2f2"
+        p_sub = "Penyiraman kebun aktif"
+    elif m_val >= wet:
+        p_badge = "🛑 OTOMATIS MATI"
+        p_val = "MATI"
+        p_color = "#0284c7"
+        p_bg = "#f0f9ff"
+        p_sub = "Proteksi jenuh air (cegah busuk)"
+    else:
+        p_badge = "🟢 SIAGA HEMAT AIR"
+        p_val = "MATI (Siaga)"
+        p_color = "#15803d"
+        p_bg = "#f0fdf4"
+        p_sub = "Kelembapan optimal 55–76%"
 
     html_out = (
         f'<div class="live-console-card">'
@@ -3752,7 +3802,7 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         f'<span class="live-prog-pct">{pct_prog}%</span>'
         f'</div>'
         f'</div>'
-        # 2. 4 Spacious Telemetry Metrics
+        # 2. 5 Spacious Telemetry Metrics
         f'<div class="live-metrics-grid">'
         # Metric 1: Kelembapan Tanah
         f'<div class="live-metric-box">'
@@ -3781,14 +3831,23 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         f'<div class="live-metric-val">{float(mat):.0f}%</div>'
         f'<div class="live-metric-sub">Skala 0% (Bibit) s.d. 100% (Panen)</div>'
         f'</div>'
-        # Metric 4: Fase Pertumbuhan
+        # Metric 4: Fase Tanaman
         f'<div class="live-metric-box">'
         f'<div class="live-metric-head">'
         f'<span class="live-metric-lbl">Fase Tanaman</span>'
-        f'<span class="live-metric-badge" style="background:#f0fdf4;color:#15803d;">AI LSTM</span>'
+        f'<span class="live-metric-badge" style="background:#f0fdf4;color:#15803d;">AI / Observasi</span>'
         f'</div>'
         f'<div class="live-metric-val" style="font-size:17.5px;">{_e(strip_emoji(stage_str))}</div>'
         f'<div class="live-metric-sub">{_e(stage_source)}</div>'
+        f'</div>'
+        # Metric 5: Status Pompa Air
+        f'<div class="live-metric-box">'
+        f'<div class="live-metric-head">'
+        f'<span class="live-metric-lbl">Status Pompa Air</span>'
+        f'<span class="live-metric-badge" style="background:{p_bg};color:{p_color};">{p_badge}</span>'
+        f'</div>'
+        f'<div class="live-metric-val" style="font-size:17.5px;color:{p_color};">{p_val}</div>'
+        f'<div class="live-metric-sub">{p_sub}</div>'
         f'</div>'
         f'</div>'
         # 3. Integrated 3-Column Action Guide
