@@ -1235,9 +1235,18 @@ def photo_panel(m, img, key, sensor_row=None):
 
 def get_image(key):
     mode = st.radio("Pilih cara memasukkan foto tanaman:", ["Unggah file foto dari HP/Komputer", "Ambil foto langsung dengan kamera"], horizontal=True, key=f"{key}_mode")
-    f = (st.file_uploader("Pilih foto tanaman pakcoy (JPG / PNG)", type=["jpg", "jpeg", "png"], key=f"{key}_up")
+    f = (st.file_uploader(
+            "Pilih foto tanaman pakcoy (JPG / PNG)",
+            type=["jpg", "jpeg", "png"],
+            help="Unggah foto daun atau tajuk tanaman pakcoy. Format didukung: JPG, JPEG, PNG. Ukuran maksimal: 10 MB.",
+            key=f"{key}_up"
+         )
          if mode == "Unggah file foto dari HP/Komputer" else st.camera_input("Arahkan kamera ke tanaman pakcoy", key=f"{key}_cam"))
     if f is None:
+        return None, None
+    max_bytes = 10 * 1024 * 1024
+    if getattr(f, "size", 0) > max_bytes:
+        ui.banner("warn", f"Ukuran file foto terlalu besar ({f.size / (1024 * 1024):.1f} MB). Batas maksimal ukuran foto adalah 10 MB. Silakan pilih foto dengan ukuran lebih kecil.")
         return None, None
     file_id = getattr(f, "file_id", None) or getattr(f, "id", None) or getattr(f, "name", "cam")
     sig = (getattr(f, "name", "cam"), getattr(f, "size", 0), str(file_id))

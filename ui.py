@@ -2435,7 +2435,7 @@ div[class*="scan_btn"] button:hover {
   background-color: #f8fbf9 !important;
   border: 1.5px dashed #86efac !important;
   border-radius: 10px !important;
-  padding: 16px 20px !important;
+  padding: 14px 18px !important;
   transition: all 0.15s ease !important;
 }
 
@@ -2447,10 +2447,42 @@ div[class*="scan_btn"] button:hover {
 
 [data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] button {
   background-color: #ffffff !important;
-  border: 1px solid #15803d !important;
+  border: 1.5px solid #15803d !important;
   color: #15803d !important;
   font-weight: 600 !important;
-  border-radius: 7px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  padding: 5px 16px !important;
+  box-shadow: 0 1px 2px rgba(21, 128, 61, 0.08) !important;
+  transition: all 0.15s ease !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] button:hover {
+  background-color: #15803d !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(21, 128, 61, 0.18) !important;
+}
+
+/* Kustomisasi Teks Batas Upload Menjadi Bahasa Indonesia & Badge Rapi */
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploaderInstructions"],
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] section small {
+  font-size: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploaderInstructions"]::after,
+[data-testid="stMainBlockContainer"] [data-testid="stFileUploader"] section small::after {
+  content: "Maksimal 10 MB per foto • Format JPG, JPEG, PNG" !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: #2e4438 !important;
+  background: #edf7ef !important;
+  border: 1px solid #c3decb !important;
+  padding: 4px 10px !important;
+  border-radius: 6px !important;
+  display: inline-block !important;
+  letter-spacing: 0.1px !important;
 }
 
 /* Expanders */
