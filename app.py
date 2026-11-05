@@ -1239,13 +1239,14 @@ def get_image(key):
          if mode == "Unggah file foto dari HP/Komputer" else st.camera_input("Arahkan kamera ke tanaman pakcoy", key=f"{key}_cam"))
     if f is None:
         return None, None
-    sig = (getattr(f, "name", "cam"), getattr(f, "size", 0))
+    file_id = getattr(f, "file_id", None) or getattr(f, "id", None) or getattr(f, "name", "cam")
+    sig = (getattr(f, "name", "cam"), getattr(f, "size", 0), str(file_id))
     return Image.open(f), sig
 
 
 def page_cnn():
     ui.hero("Cek Kesiapan Panen & Kesehatan Daun dari Foto",
-            "Unggah foto tanaman pakcoy Anda, lalu tekan tombol 'Analisis Foto Tanaman Sekarang' untuk memeriksa kesiapan panen dan kesehatan daun.",
+            "Unggah foto tanaman pakcoy Anda, lalu tekan tombol 'Analisis Foto Tanaman' untuk memeriksa kesiapan panen dan kesehatan daun.",
             "scan-line")
     m = load_models()
     tab1, tab2 = st.tabs(["Periksa Foto Tanaman", "Tingkat Ketepatan & Info Model Foto"])
@@ -1266,9 +1267,16 @@ def page_cnn():
                     st.session_state["cnn_committed_sig"] = img_sig
 
         if img is None:
+            st.session_state.pop("cnn_committed_sig", None)
             ui.pending_action_card(
                 "Unggah atau Ambil Foto Tanaman Pakcoy",
                 "Pilih file foto pakcoy (JPG/PNG) atau gunakan kamera di atas untuk melihat hasil deteksi fase pertumbuhan (CNN), pengukuran fisik daun (cm, cm², SPAD), dan rekomendasi perawatan AI.",
+                icon_name="scan-line"
+            )
+        elif st.session_state.get("cnn_committed_sig") != img_sig:
+            ui.pending_action_card(
+                "Tekan Tombol 'Analisis Foto Tanaman' untuk Memulai Analisis",
+                "Foto tanaman pakcoy telah siap dianalisis. Silakan tekan tombol hijau 'Analisis Foto Tanaman' di atas untuk melihat hasil deteksi fase pertumbuhan (CNN), pengukuran fisik daun (cm, cm², SPAD), dan rekomendasi perawatan AI.",
                 icon_name="scan-line"
             )
         else:
@@ -1347,9 +1355,17 @@ def page_scan():
                 st.session_state["scan_committed_sig"] = scan_sig
 
     if img is None:
+        st.session_state.pop("scan_committed_sig", None)
         ui.pending_action_card(
             "Unggah Foto Pakcoy pada Langkah 1 untuk Memulai Diagnosis Lengkap",
             "Unggah foto daun pakcoy pada Langkah 1 dan pilih siklus sensor pada Langkah 2 untuk menghasilkan laporan diagnosis terpadu (CNN + LSTM).",
+            icon_name="scan-search"
+        )
+        return
+    elif st.session_state.get("scan_committed_sig") != scan_sig:
+        ui.pending_action_card(
+            "Tekan Tombol 'Jalankan Diagnosis' untuk Memulai Diagnosis Lengkap",
+            "Foto tanaman pakcoy dan catatan sensor telah siap. Silakan klik tombol hijau 'Jalankan Diagnosis' di atas untuk menghasilkan laporan diagnosis terpadu (CNN + LSTM).",
             icon_name="scan-search"
         )
         return
