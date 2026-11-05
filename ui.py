@@ -3759,7 +3759,7 @@ def action_guide_card(moist, temp, mat, stage_label, dry=55.0, wet=76.0, title="
     st.markdown(html_out, unsafe_allow_html=True)
 
 
-def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, moist, temp, cond_str, mat, stage_str, stage_source, dry=55.0, wet=76.0):
+def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, moist, temp, cond_str, mat, stage_str, stage_source, dry=55.0, wet=76.0, override="AUTO"):
     """Konsol telemetri live terpadu: status header + progress bar + 5 kartu metrik proporsional + 3 rekomendasi tindakan."""
     adv = _compute_action_advice(moist, temp, mat, stage_str, dry=dry, wet=wet)
     water_status, water_color, water_bg, water_advice = adv["water"]
@@ -3769,24 +3769,52 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
     pct_prog = min(100, max(1, int(round((step_idx / max(1, total_steps)) * 100))))
 
     m_val = float(moist)
-    if m_val < dry:
-        p_badge = "⚡ OTOMATIS MENYALA"
-        p_val = "MENYALA"
+    if override == "ON":
+        p_badge = "⚡ MANUAL HIDUP"
+        p_val = "HIDUP (Menyiram)"
         p_color = "#dc2626"
         p_bg = "#fef2f2"
-        p_sub = "Penyiraman kebun aktif"
-    elif m_val >= wet:
-        p_badge = "🛑 OTOMATIS MATI"
+        p_sub = "Dihidupkan manual"
+        water_status = "Pompa Air HIDUP (Manual)"
+        water_color = "#dc2626"
+        water_advice = "Pompa air sedang menyala atas kontrol manual pengguna. Matikan pompa saat tanah sudah cukup basah."
+    elif override == "OFF":
+        p_badge = "🛑 MANUAL MATI"
         p_val = "MATI"
-        p_color = "#0284c7"
-        p_bg = "#f0f9ff"
-        p_sub = "Proteksi jenuh air (cegah busuk)"
-    else:
-        p_badge = "🟢 SIAGA HEMAT AIR"
-        p_val = "MATI (Siaga)"
-        p_color = "#15803d"
-        p_bg = "#f0fdf4"
-        p_sub = "Kelembapan optimal 55–76%"
+        p_color = "#475569"
+        p_bg = "#f1f5f9"
+        p_sub = "Dimatikan manual"
+        water_status = "Pompa Air MATI (Manual)"
+        water_color = "#475569"
+        water_advice = "Pompa air dinonaktifkan secara manual oleh pengguna."
+    else:  # AUTO
+        if m_val < dry:
+            p_badge = "⚡ OTOMATIS HIDUP"
+            p_val = "HIDUP (Menyiram)"
+            p_color = "#dc2626"
+            p_bg = "#fef2f2"
+            p_sub = "Tanah kering (<55%)"
+            water_status = "Tanah Kering — Pompa Air HIDUP"
+            water_color = "#dc2626"
+            water_advice = f"Kelembapan ({m_val:.0f}%) di bawah batas aman ({dry:.0f}%). Pompa air otomatis DINYALAKAN (HIDUP) untuk menyiram tanaman pakcoy."
+        elif m_val >= wet:
+            p_badge = "🛑 OTOMATIS MATI"
+            p_val = "MATI"
+            p_color = "#0284c7"
+            p_bg = "#f0f9ff"
+            p_sub = "Proteksi basah (≥76%)"
+            water_status = "Tanah Terlalu Basah — Pompa Air MATI"
+            water_color = "#0284c7"
+            water_advice = f"Kelembapan ({m_val:.0f}%) melebihi kapasitas optimal (≥ {wet:.0f}%). Pompa air otomatis DIMATIKAN untuk mencegah pembusukan akar."
+        else:
+            p_badge = "🟢 STANDBY (SIAGA)"
+            p_val = "MATI (Siaga)"
+            p_color = "#15803d"
+            p_bg = "#f0fdf4"
+            p_sub = "Kelembapan optimal 55–76%"
+            water_status = "Kelembapan Ideal — Pompa Air MATI"
+            water_color = "#15803d"
+            water_advice = f"Kelembapan ({m_val:.0f}%) berada di zona optimal ({dry:.0f}–{wet:.0f}%). Pompa air MATI / SIAGA (hemat air & energi)."
 
     html_out = (
         f'<div class="live-console-card">'

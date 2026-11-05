@@ -201,22 +201,11 @@ def get_sources():
 
 
 def pick_dataset(key, extra_filters=False, btn_label="Tampilkan Data Siklus"):
-    df_1400 = load_history_1400()
-    if not df_1400.empty and key == "dash":
-        sim = df_1400
-        cycle_options = [
-            "Semua Siklus (1.400 Data Pengamatan)",
-            "Siklus 1 (450 Data · 30 Hari)",
-            "Siklus 2 (450 Data · 30 Hari)",
-            "Siklus 3 (450 Data · 30 Hari)",
-            "Siklus 4 (50 Data)"
-        ]
-    else:
-        sim, _ = load_builtin()
-        all_cycles = sorted(sim["Cycle_ID"].unique().tolist())
-        cycle_options = [f"Siklus {c}" for c in all_cycles] + ["Semua Siklus (1–30)"]
-
+    sim, _ = load_builtin()
     up = st.session_state.get("upload_df")
+
+    all_cycles = sorted(sim["Cycle_ID"].unique().tolist())
+    cycle_options = [f"Siklus {c}" for c in all_cycles] + ["Semua Siklus (1–30)"]
     if up is not None:
         cycle_options.append("Dataset Unggahan")
 
@@ -231,24 +220,19 @@ def pick_dataset(key, extra_filters=False, btn_label="Tampilkan Data Siklus"):
         clicked = c_btn.button(btn_label, type="primary", use_container_width=True, key=f"{key}_apply_btn")
 
         valid_sel = True
-        if "Semua Siklus" in selected_label:
+        if selected_label == "Semua Siklus (1–30)":
             df = sim
-            src_name = selected_label
-            cyc_sig = ("all", len(sim))
+            src_name = "Semua Siklus (1–30)"
+            cyc_sig = ("all",)
         elif selected_label == "Dataset Unggahan" and up is not None:
             df = up
             src_name = "Dataset Unggahan"
             cyc_sig = ("upload", st.session_state.get("upload_name", ""), len(up))
         else:
-            try:
-                parts = selected_label.split(" ")[1]
-                c_num = int(parts)
-                df = sim[sim["Cycle_ID"] == c_num]
-            except Exception:
-                df = sim
-                c_num = 1
+            c_num = int(selected_label.replace("Siklus ", ""))
+            df = sim[sim["Cycle_ID"] == c_num]
             src_name = selected_label
-            cyc_sig = ("single", c_num, len(df))
+            cyc_sig = ("single", c_num)
 
         full_sig = (src_name, cyc_sig)
 
@@ -263,33 +247,18 @@ def pick_dataset(key, extra_filters=False, btn_label="Tampilkan Data Siklus"):
 
 
 def _get_series_options():
-    df_1400 = load_history_1400()
-    options = {}
-    if not df_1400.empty:
-        for c in sorted(df_1400["Cycle_ID"].unique()):
-            sub = df_1400[df_1400["Cycle_ID"] == c].copy()
-            options[f"Siklus {c} ({len(sub)} data · 15×/hari)"] = sub
-    else:
-        sim, _ = load_builtin()
-        for c in sorted(sim["Cycle_ID"].unique()):
-            options[f"Siklus {c}"] = sim[sim["Cycle_ID"] == c]
+    sim, _ = load_builtin()
     up = st.session_state.get("upload_df")
+    options = {}
+    for c in sorted(sim["Cycle_ID"].unique()):
+        options[f"Siklus {c}"] = sim[sim["Cycle_ID"] == c]
     if up is not None:
         options["Dataset Unggahan"] = up
     return options
 
 
 def pick_series(key, container=None):
-    if key == "fc":
-        sim, _ = load_builtin()
-        options = {}
-        for c in sorted(sim["Cycle_ID"].unique()):
-            options[f"Siklus {c}"] = sim[sim["Cycle_ID"] == c]
-        up = st.session_state.get("upload_df")
-        if up is not None:
-            options["Dataset Unggahan"] = up
-    else:
-        options = _get_series_options()
+    options = _get_series_options()
     labels = list(options.keys())
     default_idx = 0
     host = container if container is not None else st
@@ -409,13 +378,15 @@ def _render_live_content(advance=False):
             k = int(p.argmax())
             tahap, sumber = f"{label(utils.CLASS_NAMES[k])}", f"Deteksi AI · Yakin {p[k]:.0%}"
         except Exception:
-            tahap = label(str(row.get("Fase", row.get("Ground Truth Criteria", "Masa Pertumbuhan"))))
-            sumber = "Data pengamatan kebun"
+            tahap = label(str(row.get("Ground Truth Criteria", "Masa Pertumbuhan")))
+            sumber = "Data catatan kebun"
     else:
-        tahap = label(str(row.get("Fase", row.get("Ground Truth Criteria", "Masa Pertumbuhan"))))
-        sumber = "Data pengamatan kebun"
+        tahap = label(str(row.get("Ground Truth Criteria", "Masa Pertumbuhan")))
+        sumber = "Data catatan kebun"
     raw_cond = str(row["Soil Condition"])
     jam_str = JAM_LABELS_ID.get(str(row["Time"]), str(row["Time"]))
+
+    override = st.session_state.get("pump_override", "AUTO")
 
     ui.live_telemetry_console(
         day=int(row["Day"]),
@@ -431,18 +402,19 @@ def _render_live_content(advance=False):
         stage_source=sumber,
         dry=DRY,
         wet=WET,
+        override=override,
     )
 
     c1, c2 = st.columns(2)
     show(charts.live_line(hist, "Soil Moisture (%)", "Grafik Kelembapan Tanah (%)", "#38bdf8", "Kelembapan (%)", dry=DRY, wet=WET),
-         f"lv_m_{i}", c1)
-    show(charts.live_line(hist, "Temperature (°C)", "Grafik Suhu Udara (°C)", "#fb923c", "Suhu (°C)"), f"lv_t_{i}", c2)
+         "live_moist_chart", c1)
+    show(charts.live_line(hist, "Temperature (°C)", "Grafik Suhu Udara (°C)", "#fb923c", "Suhu (°C)"), "live_temp_chart", c2)
     c3, c4 = st.columns([1, 2])
-    show(charts.gauge(row[MAT], "Indikator Kematangan Tanaman (%)", th), f"lv_g_{i}", c3)
-    show(charts.growth_curve(grow, th), f"lv_c_{i}", c4)
+    show(charts.gauge(row[MAT], "Indikator Kematangan Tanaman (%)", th), "live_gauge_chart", c3)
+    show(charts.growth_curve(grow, th), "live_growth_chart", c4)
 
 
-@st.fragment(run_every=1.5)
+@st.fragment(run_every=1.0)
 def _live_panel_auto():
     _render_live_content(advance=True)
 
@@ -472,6 +444,28 @@ def live_section():
         btn_load = c_btn1.button("Tampilkan Konsol", type="primary", use_container_width=True, key="btn_live_load")
         toggle_lbl = "Hentikan Live" if is_playing else "Jalankan Live"
         btn_play = c_btn2.button(toggle_lbl, use_container_width=True, key="btn_live_play")
+
+        st.markdown('<div style="margin:10px 0 6px 0;border-top:1px dashed #e2ebe4;padding-top:8px;"></div>', unsafe_allow_html=True)
+        p_c1, p_c2, p_c3, p_c4 = st.columns([1.4, 1.0, 1.0, 1.2], vertical_alignment="center")
+
+        override = st.session_state.get("pump_override", "AUTO")
+        if override == "ON":
+            p_badge_txt = '<span style="background:#fef3c7;color:#b45309;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">⚡ MANUAL HIDUP</span>'
+        elif override == "OFF":
+            p_badge_txt = '<span style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">🛑 MANUAL MATI</span>'
+        else:
+            p_badge_txt = '<span style="background:#f0fdf4;color:#15803d;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">🤖 OTOMATIS (SENSOR)</span>'
+
+        p_c1.markdown(f'<div style="font-size:12.5px;font-weight:600;color:#334155;">Kontrol Pompa: {p_badge_txt}</div>', unsafe_allow_html=True)
+        if p_c2.button("▶️ Hidupkan", use_container_width=True, key="btn_live_pump_on", help="Nyalakan pompa air secara manual"):
+            st.session_state["pump_override"] = "ON"
+            st.rerun()
+        if p_c3.button("⏹️ Matikan", use_container_width=True, key="btn_live_pump_off", help="Matikan pompa air secara manual"):
+            st.session_state["pump_override"] = "OFF"
+            st.rerun()
+        if p_c4.button("🤖 Otomatis", use_container_width=True, key="btn_live_pump_auto", help="Kembalikan kontrol pompa otomatis berbasis ambang batas kelembapan sensor (Kering <55% hidup, Basah ≥76% mati)"):
+            st.session_state["pump_override"] = "AUTO"
+            st.rerun()
 
     df = options[choice].sort_values("Time_Index").reset_index(drop=True)
     sig = (choice, len(df))
@@ -505,181 +499,9 @@ def live_section():
         _render_live_content(advance=False)
 
 
-def render_pump_automation_control(df):
-    ui.section_header(
-        "Sistem Kontrol Pompa Air & Otomatisasi Irigasi Cerdas",
-        "Pemantauan status tanah dan kendali pompa otomatis berbasis sensor IoT (Kering < 55% pompa menyala, Basah ≥ 76% pompa dimatikan).",
-        icon_name="zap"
-    )
-
-    if "pump_mode" not in st.session_state:
-        st.session_state["pump_mode"] = "Otomatis"
-    if "pump_manual_state" not in st.session_state:
-        st.session_state["pump_manual_state"] = "MATI"
-    if "sim_moist" not in st.session_state:
-        st.session_state["sim_moist"] = None
-
-    if st.session_state["sim_moist"] is not None:
-        cur_moist = float(st.session_state["sim_moist"])
-        cur_temp = 27.2
-        sensor_source = "🧪 Mode Simulasi Pengujian Cepat"
-    else:
-        last_row = df.iloc[-1]
-        cur_moist = float(last_row["Soil Moisture (%)"])
-        cur_temp = float(last_row["Temperature (°C)"])
-        day_val = int(last_row.get("Day", 1))
-        time_val = str(last_row.get("Time", "08:00"))
-        time_fmt = JAM_LABELS_ID.get(time_val, time_val)
-        sensor_source = f"Sensor Riil Kebun: Hari ke-{day_val} · Pukul {time_fmt}"
-
-    mode = st.session_state["pump_mode"]
-
-    if mode == "Manual":
-        pump_state = st.session_state["pump_manual_state"]
-        if pump_state == "MENYALA":
-            pump_status_text = "MENYALA (Penyiraman Aktif)"
-            pump_color = "#ea580c"
-            banner_kind = "warn"
-            banner_msg = "⚠️ <b>KONTROL MANUAL: POMPA AIR MENYALA</b> — Pompa sedang dihidupkan secara manual oleh pengguna untuk menyiram kebun pakcoy. Pastikan mematikan pompa setelah tanah cukup basah."
-        else:
-            pump_status_text = "MATI (Standby Siaga)"
-            pump_color = "#15803d"
-            banner_kind = "info"
-            banner_msg = "🛑 <b>KONTROL MANUAL: POMPA AIR MATI</b> — Pompa air dinonaktifkan secara manual oleh pengguna."
-    else:  # Mode Otomatis
-        if cur_moist < 55.0:
-            pump_state = "MENYALA"
-            pump_status_text = "MENYALA (Otomatis Menyiram)"
-            pump_color = "#ea580c"
-            banner_kind = "danger"
-            banner_msg = f"⚠️ <b>PERINGATAN TANAH KERING ({cur_moist:.0f}% < 55%)</b> — Kelembapan tanah berada di bawah batas aman minimal. Sistem IoT otomatis <b>MENYALAKAN POMPA AIR</b> untuk menyiram tanaman pakcoy agar tidak layu."
-        elif cur_moist >= 76.0:
-            pump_state = "MATI"
-            pump_status_text = "MATI (Proteksi Jenuh Air)"
-            pump_color = "#0284c7"
-            banner_kind = "warn"
-            banner_msg = f"💧 <b>PERINGATAN TANAH TERLALU BASAH ({cur_moist:.0f}% ≥ 76%)</b> — Kadar air tanah melebihi kapasitas optimal. Sistem IoT otomatis <b>MEMATIKAN POMPA AIR</b> untuk mencegah pembusukan akar tanaman pakcoy."
-        else:
-            pump_state = "MATI"
-            pump_status_text = "MATI (Standby / Hemat Air)"
-            pump_color = "#15803d"
-            banner_kind = "ok"
-            banner_msg = f"✅ <b>KONDISI TANAH AMAN & IDEAL ({cur_moist:.0f}%)</b> — Kelembapan tanah berada dalam rentang optimal budidaya pakcoy (55% – 76%). Pompa air dalam mode <b>SIAGA / STANDBY</b> (hemat air & listrik)."
-
-    st.markdown(ui.pump_alert_html(banner_kind, banner_msg), unsafe_allow_html=True)
-
-    with st.container(border=True):
-        st.markdown(
-            f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;border-bottom:1px solid #edf2ee;padding-bottom:10px;">'
-            f'<div style="font-weight:700;font-size:15px;color:#1e293b;display:flex;align-items:center;gap:8px;">'
-            f'{ui.icon("cpu", 16, color="#15803d")} Panel Kontrol Irigasi & Status Sensor'
-            f'</div>'
-            f'<span style="font-size:12px;font-weight:600;color:#64748b;background:#f8fafc;padding:3px 10px;border-radius:6px;border:1px solid #e2e8f0;">'
-            f'{sensor_source}'
-            f'</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-        kp1, kp2, kp3, kp4 = st.columns(4)
-        with kp1:
-            st.markdown(
-                f'<div style="background:#f8faf8;border:1px solid #e2ebe4;border-radius:8px;padding:12px 14px;">'
-                f'<div style="font-size:11px;font-weight:600;color:#5c6f64;text-transform:uppercase;">Status Pompa Air</div>'
-                f'<div style="font-size:17.5px;font-weight:700;color:{pump_color};margin:4px 0;">{"⚡ MENYALA" if pump_state == "MENYALA" else "🛑 MATI"}</div>'
-                f'<div style="font-size:11.5px;color:#64748b;">{pump_status_text}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        with kp2:
-            st.markdown(
-                f'<div style="background:#f8faf8;border:1px solid #e2ebe4;border-radius:8px;padding:12px 14px;">'
-                f'<div style="font-size:11px;font-weight:600;color:#5c6f64;text-transform:uppercase;">Kelembapan Tanah</div>'
-                f'<div style="font-size:17.5px;font-weight:700;color:#0284c7;margin:4px 0;">{cur_moist:.0f}%</div>'
-                f'<div style="font-size:11.5px;color:#64748b;">Batas: Kering &lt;55% | Basah &ge;76%</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        with kp3:
-            st.markdown(
-                f'<div style="background:#f8faf8;border:1px solid #e2ebe4;border-radius:8px;padding:12px 14px;">'
-                f'<div style="font-size:11px;font-weight:600;color:#5c6f64;text-transform:uppercase;">Suhu Udara Kebun</div>'
-                f'<div style="font-size:17.5px;font-weight:700;color:#d97706;margin:4px 0;">{cur_temp:.1f}°C</div>'
-                f'<div style="font-size:11.5px;color:#64748b;">Suhu ideal 20°C – 30°C</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        with kp4:
-            st.markdown(
-                f'<div style="background:#f8faf8;border:1px solid #e2ebe4;border-radius:8px;padding:12px 14px;">'
-                f'<div style="font-size:11px;font-weight:600;color:#5c6f64;text-transform:uppercase;">Mode Sistem</div>'
-                f'<div style="font-size:17.5px;font-weight:700;color:#15803d;margin:4px 0;">{"🤖 Otomatis" if mode == "Otomatis" else "🖐️ Manual"}</div>'
-                f'<div style="font-size:11.5px;color:#64748b;">{"Sensor IoT Trigger" if mode == "Otomatis" else "Kontrol Petani"}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-        st.markdown('<div style="margin:14px 0 8px 0;border-top:1px solid #edf2ee;"></div>', unsafe_allow_html=True)
-
-        st.markdown('<div style="font-weight:600;font-size:13px;color:#334155;margin-bottom:6px;">Tombol Kontrol Pompa Air:</div>', unsafe_allow_html=True)
-        cb1, cb2, cb3 = st.columns([1.2, 1.2, 1.4])
-        with cb1:
-            if st.button("▶️ Hidupkan Pompa (Manual)", use_container_width=True, key="btn_dash_pump_on",
-                         help="Nyalakan pompa air secara manual untuk menyiram tanaman."):
-                st.session_state["pump_mode"] = "Manual"
-                st.session_state["pump_manual_state"] = "MENYALA"
-                st.toast("Pompa air berhasil dinyalakan secara manual.", icon="⚡")
-                st.rerun()
-        with cb2:
-            if st.button("⏹️ Matikan Pompa (Manual)", use_container_width=True, key="btn_dash_pump_off",
-                         help="Matikan pompa air secara manual."):
-                st.session_state["pump_mode"] = "Manual"
-                st.session_state["pump_manual_state"] = "MATI"
-                st.toast("Pompa air berhasil dimatikan secara manual.", icon="🛑")
-                st.rerun()
-        with cb3:
-            if st.button("🤖 Aktifkan Mode Otomatis (Sensor)", use_container_width=True, key="btn_dash_pump_auto",
-                         help="Serahkan kendali pompa ke sistem sensor otomatis."):
-                st.session_state["pump_mode"] = "Otomatis"
-                st.session_state["sim_moist"] = None
-                st.toast("Mode otomatis aktif: pompa dikontrol penuh oleh ambang batas sensor.", icon="🤖")
-                st.rerun()
-
-        st.markdown('<div style="margin:12px 0 6px 0;font-size:12px;font-weight:600;color:#64748b;">🧪 Pengujian Cepat Logika Otomatisasi (Simulasi Skenario Sensor):</div>', unsafe_allow_html=True)
-        ts1, ts2, ts3, ts4 = st.columns(4)
-        with ts1:
-            if st.button("🚨 Uji Tanah Kering (48%)", use_container_width=True, key="btn_t_dry",
-                         help="Uji respons sistem saat kelembapan tanah turun di bawah 55% (pompa otomatis MENYALA)."):
-                st.session_state["pump_mode"] = "Otomatis"
-                st.session_state["sim_moist"] = 48.0
-                st.toast("Simulasi tanah kering (48%): Pompa otomatis MENYALA!", icon="🚨")
-                st.rerun()
-        with ts2:
-            if st.button("🌱 Uji Tanah Ideal (65%)", use_container_width=True, key="btn_t_opt",
-                         help="Uji respons sistem saat kelembapan berada di rentang optimal 55%–76% (pompa STANDBY)."):
-                st.session_state["pump_mode"] = "Otomatis"
-                st.session_state["sim_moist"] = 65.0
-                st.toast("Simulasi tanah ideal (65%): Pompa STANDBY / MATI.", icon="🌱")
-                st.rerun()
-        with ts3:
-            if st.button("💧 Uji Tanah Basah (82%)", use_container_width=True, key="btn_t_wet",
-                         help="Uji respons sistem saat kelembapan tanah berlebih ≥ 76% (pompa otomatis DIMATIKAN)."):
-                st.session_state["pump_mode"] = "Otomatis"
-                st.session_state["sim_moist"] = 82.0
-                st.toast("Simulasi tanah terlalu basah (82%): Pompa otomatis DIMATIKAN!", icon="💧")
-                st.rerun()
-        with ts4:
-            if st.button("↺ Reset ke Sensor Riil", use_container_width=True, key="btn_t_rst",
-                         help="Kembalikan nilai kelembapan ke data pembacaan riil siklus tanam."):
-                st.session_state["sim_moist"] = None
-                st.session_state["pump_mode"] = "Otomatis"
-                st.toast("Sensor di-reset ke data riil kebun.", icon="↺")
-                st.rerun()
-
-
 def page_dashboard():
     ui.hero("Dashboard Utama — Pemantauan Tanaman Pakcoy",
-            "Ringkasan telemetri sensor tanah, suhu lingkungan, kurva kematangan tanaman pakcoy, dan kontrol otomatis pompa air.",
+            "Ringkasan telemetri sensor tanah, suhu lingkungan, kurva kematangan tanaman pakcoy, dan konsol pemantauan live.",
             "layout-dashboard")
     name, df, is_applied = pick_dataset("dash", extra_filters=False, btn_label="Tampilkan Data Siklus")
 
@@ -687,24 +509,17 @@ def page_dashboard():
         live_section()
         return
 
-    # 1. Kontrol Pompa Air & Otomatisasi
-    render_pump_automation_control(df)
-
     col_age = "Day" if "Day" in df.columns else ("DAP" if "DAP" in df.columns else df.columns[0])
     min_age = int(df[col_age].min()) if len(df) else utils.START_DAY
     max_age = int(df[col_age].max()) if len(df) else utils.HARVEST_DAY
     m = load_models()
     th = thresholds(m)
-
-    total_data_lbl = f"{len(df):,} data"
-    sub_pengukuran = "15× sehari (Pukul 06:00 s.d. 20:00)"
-
     ui.kpi_cards([
-        dict(icon="database", label="Total Pengukuran", value=total_data_lbl, color="#15803d", sub=sub_pengukuran),
-        dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{df['Soil Moisture (%)'].mean():.1f}%", color="#0284c7", sub="Rentang ideal: 55% – 76%"),
-        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{df['Temperature (°C)'].mean():.1f}°C", color="#d97706", sub="Rentang ideal: 20°C – 30°C"),
-        dict(icon="trending-up", label="Rata-rata Kematangan", value=f"{df[MAT].mean():.1f}%", color="#15803d", sub="Skala 0% (Bibit) – 100% (Panen)"),
-        dict(icon="calendar", label="Rentang Umur Pakcoy", value=f"{min_age}–{max_age} hari", color="#059669", sub="Panen optimal di Hari ke-30"),
+        dict(icon="database", label="Total Pengukuran", value=f"{len(df):,} kali", color="#60a5fa", sub="3x sehari (Pagi, Siang, Sore)"),
+        dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{df['Soil Moisture (%)'].mean():.1f}%", color="#38bdf8", sub="Rentang ideal: 55% – 75%"),
+        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{df['Temperature (°C)'].mean():.1f}°C", color="#fb923c", sub="Rentang ideal: 20°C – 30°C"),
+        dict(icon="trending-up", label="Rata-rata Kematangan", value=f"{df[MAT].mean():.1f}%", color="#34d399", sub="Skala 0% (Bibit) – 100% (Panen)"),
+        dict(icon="calendar", label="Rentang Umur Pakcoy", value=f"{min_age}–{max_age} hari", color="#a78bfa", sub="Panen optimal di Hari ke-30"),
     ], cols=5)
     ui.maturity_legend_bar(th)
 
@@ -719,8 +534,8 @@ def page_dashboard():
     show(charts.maturity_curve(df), "d_mat")
 
     ui.section_header(
-        "Data Lengkap Pengukuran Sensor Kebun (15× Pengecekan Harian)",
-        f"Menampilkan seluruh {len(df):,} catatan pengukuran sensor dari {name} (Pukul 06:00 s.d. 20:00).",
+        "Data Lengkap Pengukuran Sensor Kebun",
+        f"Menampilkan seluruh {len(df):,} catatan pengukuran sensor dari siklus tanam yang dipilih (Hari ke-{min_age} s.d. Hari ke-{max_age}).",
         icon_name="database"
     )
     st.dataframe(style_table(format_display_df(df)), height=380, hide_index=True, width="stretch")
