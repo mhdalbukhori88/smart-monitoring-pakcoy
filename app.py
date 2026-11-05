@@ -535,68 +535,6 @@ def _style_table(d):
     return sty.format(fmt)
 
 
-def page_eksplorasi():
-    ui.hero("Data & Riwayat Kebun Pakcoy",
-            "Pilih siklus tanam lalu tekan tombol 'Tampilkan Data & Grafik' untuk menelusuri riwayat kebun.",
-            "bar-chart-3")
-    name, fdf, is_applied = pick_dataset("eks", extra_filters=False, btn_label="Tampilkan Data & Grafik")
-    if not is_applied:
-        ui.pending_action_card(
-            "Tekan Tombol 'Tampilkan Data & Grafik' untuk Memuat Riwayat Kebun",
-            "Pilih siklus tanam di atas, kemudian klik tombol hijau 'Tampilkan Data & Grafik' untuk melihat tabel dan grafik analisis.",
-            icon_name="bar-chart-3"
-        )
-        return
-
-    ui.banner("ok", f"Menampilkan seluruh {len(fdf):,} catatan pengukuran sensor dari {name} (Hari ke-1 s.d. Hari ke-30).")
-    st.dataframe(style_table(format_display_df(fdf)), height=420, hide_index=True, width="stretch")
-    st.download_button("Unduh Data Tabel Ini (Format CSV)", fdf.to_csv(index=False).encode("utf-8"),
-                       file_name="data_pakcoy_filter.csv", mime="text/csv", key="eks_dl")
-    c1, c2, c3 = st.columns(3)
-    show(charts.hist_moisture(fdf, DRY, WET), "e_hist", c1)
-    show(charts.scatter_moist_temp(fdf), "e_scatter", c2)
-    show(charts.daily_time_pattern(fdf), "e_daily_time", c3)
-
-    shares = fdf["Soil Condition"].value_counts(normalize=True).reindex(["Wet", "Optimal", "Dry"]).fillna(0)
-    if shares.min() < 0.10:
-        ui.banner("info", "Sebagian besar catatan kebun berada pada kondisi tanah Ideal (Optimal), sedangkan kondisi Kering atau Terlalu Basah lebih jarang terjadi karena penyiraman dijaga rutin.")
-    if len(fdf) > 1:
-        r = fdf[utils.SENSOR_COLS].corr().iloc[0, 1]
-        if pd.notna(r):
-            ui.banner("info", f"Hubungan Kelembapan Tanah & Suhu Udara (Korelasi {r:.2f}): Saat suhu udara meningkat di siang hari, kelembapan tanah cenderung sedikit berkurang akibat penguapan alami.")
-    with st.expander("Lihat Ringkasan Angka Rata-rata, Terendah, dan Tertinggi"):
-        desc_df = fdf[utils.SENSOR_COLS + [MAT]].rename(columns={
-            "Soil Moisture (%)": "Kelembapan Tanah (%)",
-            "Temperature (°C)": "Suhu Udara (°C)",
-            MAT: "Tingkat Kematangan (%)"
-        }).describe().round(2)
-        desc_df.index = [
-            {"count": "Jumlah Data", "mean": "Rata-rata", "std": "Simpangan Baku", "min": "Nilai Terendah",
-             "25%": "Kuartil 25%", "50%": "Nilai Tengah (Median)", "75%": "Kuartil 75%", "max": "Nilai Tertinggi"}.get(idx, idx)
-            for idx in desc_df.index
-        ]
-        st.caption("**Ringkasan Umum Seluruh Data Terfilter:**")
-        st.dataframe(desc_df, width="stretch")
-        st.caption("**Nilai Rata-rata Berdasarkan Waktu Ukur (Pagi, Siang, Sore):**")
-        time_df = fdf.groupby("Time")[utils.SENSOR_COLS + [MAT]].mean().round(2)
-        time_df.index = [JAM_LABELS_ID.get(str(i), str(i)) for i in time_df.index]
-        time_df = time_df.rename(columns={
-            "Soil Moisture (%)": "Rata-rata Kelembapan (%)",
-            "Temperature (°C)": "Rata-rata Suhu (°C)",
-            MAT: "Rata-rata Kematangan (%)"
-        })
-        st.dataframe(time_df, width="stretch")
-        grp_df = fdf.groupby("Ground Truth Criteria")[utils.SENSOR_COLS + [MAT]].mean().round(2)
-        grp_df.index = [label(i) for i in grp_df.index]
-        grp_df = grp_df.rename(columns={
-            "Soil Moisture (%)": "Rata-rata Kelembapan (%)",
-            "Temperature (°C)": "Rata-rata Suhu (°C)",
-            MAT: "Rata-rata Kematangan (%)"
-        })
-        st.caption("**Nilai Rata-rata pada Setiap Fase Pertumbuhan:**")
-        st.dataframe(grp_df, width="stretch")
-
-
 # ================================================================= monitoring realtime
 def render_monitor(ph, recs, dry, wet, tag):
     if not recs:
@@ -1485,7 +1423,6 @@ def page_history_perkembangan():
 
 PAGES = {
     "🏠 Dashboard Utama": page_dashboard,
-    "📊 Data & Riwayat Kebun": page_eksplorasi,
     "📡 Monitoring Sensor Live": page_monitoring,
     "🧠 Cek Fase dari Sensor": page_lstm,
     "🔮 Prakiraan 4 Hari": page_forecast,
