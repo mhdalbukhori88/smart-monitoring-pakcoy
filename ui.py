@@ -835,15 +835,11 @@ span[class*="Icon"],
 
 /* 2. Area Pesan */
 .st-key-chat_scroll_area {
-  height: calc(100vh - 400px) !important;
-  min-height: 300px !important;
-  max-height: 460px !important;
   background-color: #fafcfa !important;
   border: none !important;
   border-top: none !important;
   border-bottom: none !important;
   padding: 16px 20px !important;
-  overflow-y: auto !important;
 }
 
 /* Keadaan Kosong (Empty State) */
@@ -952,13 +948,15 @@ span[class*="Icon"],
 }
 
 /* ================================================================= User Message */
+[data-testid="stChatMessage"][aria-label*="user" i],
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
 [data-testid="stChatMessage"]:has([data-testid*="User"]),
-[data-testid="stChatMessage"]:has([aria-label*="user"]) {
+[data-testid="stChatMessage"]:has([aria-label*="user" i]) {
   flex-direction: row-reverse !important;
   justify-content: flex-start !important;
 }
 
+[data-testid="stChatMessage"][aria-label*="user" i] [data-testid*="Avatar"],
 [data-testid="stChatMessageAvatarUser"],
 [data-testid="stChatMessage"] [data-testid*="AvatarUser"],
 [data-testid="stChatMessage"]:has([data-testid*="User"]) [data-testid*="Avatar"] {
@@ -970,7 +968,8 @@ span[class*="Icon"],
 }
 
 /* User Bubble: Hijau Pakcoy #15803d */
-[data-testid="stChatMessageContent"][aria-label*="user"],
+[data-testid="stChatMessage"][aria-label*="user" i] [data-testid="stChatMessageContent"],
+[data-testid="stChatMessageContent"][aria-label*="user" i],
 [data-testid="stChatMessage"]:has([data-testid*="User"]) [data-testid="stChatMessageContent"] {
   background-color: #15803d !important;
   color: #ffffff !important;
@@ -990,6 +989,9 @@ span[class*="Icon"],
   min-height: auto !important;
 }
 
+[data-testid="stChatMessage"][aria-label*="user" i] [data-testid="stMarkdownContainer"],
+[data-testid="stChatMessage"][aria-label*="user" i] [data-testid="stChatMessageContent"] p,
+[data-testid="stChatMessage"][aria-label*="user" i] [data-testid="stChatMessageContent"] span,
 [data-testid="stChatMessage"]:has([data-testid*="User"]) [data-testid="stMarkdownContainer"],
 [data-testid="stChatMessage"]:has([data-testid*="User"]) [data-testid="stChatMessageContent"] p,
 [data-testid="stChatMessage"]:has([data-testid*="User"]) [data-testid="stChatMessageContent"] span {
@@ -1006,10 +1008,11 @@ span[class*="Icon"],
 }
 
 /* ================================================================= Assistant Message */
+[data-testid="stChatMessage"][aria-label*="assistant" i],
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]),
 [data-testid="stChatMessage"]:has([data-testid*="Assistant"]),
-[data-testid="stChatMessage"]:has([aria-label*="assistant"]),
-[data-testid="stChatMessage"]:not(:has([data-testid*="User"])) {
+[data-testid="stChatMessage"]:has([aria-label*="assistant" i]),
+[data-testid="stChatMessage"]:not([aria-label*="user" i]):not(:has([data-testid*="User"])) {
   flex-direction: row !important;
   justify-content: flex-start !important;
   gap: 10px !important;
@@ -1386,8 +1389,6 @@ span[class*="Icon"],
     max-width: calc(100% - 24px) !important;
   }
   .st-key-chat_scroll_area {
-    height: 420px !important;
-    max-height: 420px !important;
     padding: 14px 12px !important;
   }
 }
@@ -3072,8 +3073,6 @@ html, body, .stApp {
     padding: 10px 14px !important;
   }
   .st-key-chat_scroll_area {
-    height: 380px !important;
-    max-height: 380px !important;
     padding: 12px !important;
   }
   .st-key-chat_input_section {
