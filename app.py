@@ -644,10 +644,23 @@ def eval_section(ev, names, prefix):
 
 
 # ================================================================= prediksi 4 hari
+def _fc_day_offset(hari_val):
+    """Ubah label kolom 'Hari' ('Hari ini', 'Hari +1', ...) menjadi offset hari integer (0..4)."""
+    txt = str(hari_val).strip()
+    if "+" in txt:
+        try:
+            return int(txt.split("+")[1].strip())
+        except Exception:
+            return 0
+    return 0
+
+
 def page_forecast():
-    ui.hero("Prakiraan Kondisi Kebun & Kematangan 4 Hari ke Depan",
-            "Pilih siklus tanam dan titik hari awal di bawah, lalu tekan tombol 'Tampilkan Prakiraan 4 Hari' untuk melihat proyeksi kelembapan, suhu, dan kematangan.",
-            "calendar-range")
+    ui.hero(
+        "Prakiraan Kondisi Kebun & Kematangan 4 Hari ke Depan",
+        "Proyeksi kelembapan tanah, suhu udara, dan kematangan tanaman pakcoy berbasis model AI LSTM.",
+        "calendar-range",
+    )
     m = load_models()
     if not warn_models(m, ["fc"]) or not m.get("cfg_lstm"):
         return
@@ -655,7 +668,7 @@ def page_forecast():
     win = cfg["w_in"]
 
     with st.container(border=True, key="card_fc_ctrl"):
-        c_ser, c_sld = st.columns([1.25, 2.75], vertical_alignment="top")
+        c_ser, c_sld, c_run = st.columns([1.15, 2.05, 0.95], vertical_alignment="bottom")
         df = pick_series("fc", c_ser)
         if len(df) < win:
             ui.banner("warn", f"Dataset memiliki {len(df)} pembacaan. Minimal dibutuhkan {win} pembacaan berurutan untuk prakiraan 4 hari.")
@@ -664,35 +677,64 @@ def page_forecast():
         max_fc = max(win, min(len(df), utils.CYCLE_LENGTH - cfg.get("h_out", 12)))
         if "fc_step" not in st.session_state or st.session_state["fc_step"] > max_fc or st.session_state["fc_step"] < win:
             st.session_state["fc_step"] = min(45, max_fc)
-        step = c_sld.slider("Geser titik waktu awal prakiraan:", win, max_fc, key="fc_step")
 
-        fc_c1, fc_c2, fc_c3, _ = st.columns([1.0, 1.15, 1.05, 1.2])
-        if fc_c1.button("Fase Awal · Hari ke-7", use_container_width=True, key="fc_btn1"):
-            st.session_state["fc_step"] = min(20, max_fc)
-            st.rerun()
-        if fc_c2.button("Fase Pertengahan · Hari ke-17", use_container_width=True, key="fc_btn2"):
-            st.session_state["fc_step"] = min(50, max_fc)
-            st.rerun()
-        if fc_c3.button("Menjelang Panen · Hari ke-25", use_container_width=True, key="fc_btn3"):
-            st.session_state["fc_step"] = min(75, max_fc)
-            st.rerun()
+        cur_row = df.iloc[int(st.session_state["fc_step"]) - 1]
+        cur_day = int(cur_row.get("Day", 1))
+        cur_time = str(cur_row.get("Time", "08:00"))
+        step = c_sld.slider(
+            f"Titik Awal Prakiraan (Hari ke-{cur_day} · {cur_time})",
+            win,
+            max_fc,
+            key="fc_step",
+            help="Geser untuk mengubah hari dan sesi pengukuran awal prakiraan (3 sesi/hari: 08:00, 12:00, 16:00).",
+        )
+        run_clicked = c_run.button("Tampilkan Prakiraan", type="primary", use_container_width=True, key="btn_fc_run")
 
         row_fc = df.iloc[step - 1]
-        day_fc = row_fc.get("Day", "?")
-        time_fc = str(row_fc.get("Time", "?"))
+        day_fc = int(row_fc.get("Day", 1))
+        time_fc = str(row_fc.get("Time", "08:00"))
+        max_cycle_day = max(utils.CYCLE_DAYS, int(df["Day"].max())) if "Day" in df.columns else utils.CYCLE_DAYS
+        next_day = min(max_cycle_day, day_fc + 1)
+        end_day = min(max_cycle_day, day_fc + 4)
         fc_sig = (st.session_state.get("fc_series", ""), int(step), len(df))
-
-        st.markdown('<div style="margin-top:8px;border-top:1px solid #edf2ee;padding-top:10px;"></div>', unsafe_allow_html=True)
-        b_l, b_r = st.columns([3.4, 1.0], vertical_alignment="center")
-        b_l.markdown(
-            f'<div class="action-bar-info">'
-            f'<strong>Titik Awal:</strong> Hari ke-{day_fc} &middot; Jam {time_fc} &middot; Ukur #{step} &rarr; '
-            f'<strong>Proyeksi:</strong> Hari ke-{min(utils.CYCLE_DAYS, int(day_fc) + 1)} s.d. Hari ke-{min(utils.CYCLE_DAYS, int(day_fc) + 4)}'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-        if b_r.button("Tampilkan Prakiraan", type="primary", key="btn_fc_run") or "fc_committed_sig" not in st.session_state:
+        if run_clicked or "fc_committed_sig" not in st.session_state:
             st.session_state["fc_committed_sig"] = fc_sig
+
+        st.markdown('<div class="fc-ctrl-divider"></div>', unsafe_allow_html=True)
+
+        def _set_fc_step(target_step):
+            st.session_state["fc_step"] = target_step
+
+        p_c1, p_c2, p_c3, p_info = st.columns([0.95, 1.05, 1.05, 1.55], vertical_alignment="center")
+        p_c1.button(
+            "Fase Awal · Hari ke-7",
+            use_container_width=True,
+            key="fc_btn1",
+            on_click=_set_fc_step,
+            args=(min(20, max_fc),),
+        )
+        p_c2.button(
+            "Fase Pertengahan · Hari ke-17",
+            use_container_width=True,
+            key="fc_btn2",
+            on_click=_set_fc_step,
+            args=(min(50, max_fc),),
+        )
+        p_c3.button(
+            "Menjelang Panen · Hari ke-25",
+            use_container_width=True,
+            key="fc_btn3",
+            on_click=_set_fc_step,
+            args=(min(75, max_fc),),
+        )
+        p_info.markdown(
+            f'<div class="fc-origin-pill">'
+            f'<span class="fc-origin-item"><span>Awal:</span> <strong>Hari ke-{day_fc} ({ui._e(time_fc)})</strong></span>'
+            f'<span class="fc-origin-arrow">&rarr;</span>'
+            f'<span class="fc-origin-item"><span>Proyeksi:</span> <strong>Hari ke-{next_day}–{end_day}</strong></span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     window = df.iloc[step - win: step].reset_index(drop=True)
     try:
@@ -700,83 +742,342 @@ def page_forecast():
     except Exception as e:
         st.error(f"Gagal memprediksi: {e}")
         return
+
     th = cfg["maturity_thresholds"]
+    mat_col = "Tingkat Kematangan (%)" if "Tingkat Kematangan (%)" in table.columns else "Maturity (%)"
     last = table.iloc[-1]
-    mat_last = float(last["Tingkat Kematangan (%)"]) if "Tingkat Kematangan (%)" in last else float(last["Maturity (%)"])
+    moist_last = float(last["Kelembapan (%)"])
+    temp_last = float(last["Suhu (°C)"])
+    mat_last = float(last[mat_col])
     end_stage = utils.CLASS_NAMES[utils.stage_from_maturity(mat_last, th)]
+
+    moist_tag = "Kering" if moist_last < DRY else ("Basah" if moist_last >= WET else "Ideal")
+    temp_tag = "Terik" if temp_last > 30.0 else ("Sejuk" if temp_last < 18.0 else "Ideal")
+
     ui.kpi_cards([
-        dict(icon="droplets", label="Prakiraan Kelembapan (4 Hari Lagi)", value=f"{last['Kelembapan (%)']:.0f}%", color="#38bdf8", sub="Rentang ideal: 55% – 75%"),
-        dict(icon="thermometer", label="Prakiraan Suhu (4 Hari Lagi)", value=f"{last['Suhu (°C)']:.1f}°C", color="#fb923c", sub="Rentang ideal: 20°C – 30°C"),
-        dict(icon="trending-up", label="Prakiraan Kematangan (4 Hari Lagi)", value=f"{mat_last:.0f}%", color="#34d399", sub="Siap panen ≥ 89%"),
-        dict(icon="sprout", label="Fase Tanaman 4 Hari Lagi", value=label(end_stage), color=charts.STAGE_COLORS.get(end_stage, "#34d399"), sub="Berdasarkan proyeksi AI"),
+        dict(icon="droplets", label="Kelembapan (H+4)", value=f"{moist_last:.0f}%", color="#38bdf8", sub=f"{moist_tag} · Ideal {DRY:.0f}–{WET:.0f}%"),
+        dict(icon="thermometer", label="Suhu Udara (H+4)", value=f"{temp_last:.1f}°C", color="#fb923c", sub=f"{temp_tag} · Ideal 22–28°C"),
+        dict(icon="trending-up", label="Kematangan (H+4)", value=f"{mat_last:.0f}%", color="#34d399", sub=f"Siap panen ≥ {th[1]:.0f}%"),
+        dict(icon="sprout", label="Fase Tanaman (H+4)", value=label(end_stage), color=charts.STAGE_COLORS.get(end_stage, "#34d399"), sub=f"Target Hari ke-{end_day}"),
     ], cols=4)
 
-    v_c1, v_c2 = st.columns([2.8, 1.2], vertical_alignment="bottom")
-    with v_c1:
-        ui.section_header(
-            "Kartu Prakiraan Pertumbuhan Pakcoy 4 Hari ke Depan (AI LSTM)",
-            "Visualisasi tanaman pakcoy dan proyeksi kelembapan, suhu, tingkat kematangan, serta estimasi ukuran daun untuk 4 hari ke depan.",
-            icon_name="sprout"
-        )
-    with v_c2:
-        vis_mode_sel = st.radio(
-            "Mode Gambar:",
-            ["Foto Asli Kebun", "Ilustrasi Botani AI"],
-            horizontal=True,
-            key="fc_vis_mode",
-            label_visibility="collapsed"
-        )
-    vis_mode = "svg" if "Ilustrasi" in vis_mode_sel else "photo"
-    ui.forecast_4day_cards(table, start_day=day_fc, thresholds=th, dry=DRY, wet=WET, visual_mode=vis_mode)
-
-    ui.action_guide_card(
-        last["Kelembapan (%)"],
-        last["Suhu (°C)"],
-        mat_last,
-        label(end_stage),
-        dry=DRY,
-        wet=WET,
-        title="Persiapan Kebun untuk 4 Hari ke Depan",
-        badge_text="Rekomendasi Antisipasi"
+    # Ringkasan 4 hari proyeksi (H+1 s.d. H+4) untuk tampilan ringkasan, grafik harian, dan rekomendasi
+    tbl_calc = table.copy()
+    tbl_calc["_offset"] = tbl_calc["Hari"].map(_fc_day_offset)
+    daily_proj = (
+        tbl_calc[tbl_calc["_offset"] > 0]
+        .groupby("_offset", sort=True)
+        .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
+        .round(1)
+        .reset_index()
     )
+    if daily_proj.empty:
+        daily_proj = (
+            tbl_calc.groupby("_offset", sort=True)
+            .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
+            .round(1)
+            .reset_index()
+        )
+    daily_proj["Actual_Day"] = daily_proj["_offset"].apply(lambda off: min(max_cycle_day, day_fc + int(off)))
+    truth = df.iloc[step: step + len(table)].reset_index(drop=True) if step + len(table) <= len(df) else None
 
-    hist_x = window["Time_Index"].tolist()
-    pred_x = [hist_x[-1] + i for i in range(1, len(table) + 1)]
-    truth = df.iloc[step: step + len(table)] if step + len(table) <= len(df) else None
-    c1, c2 = st.columns(2)
-    show(charts.forecast_line(hist_x, window["Soil Moisture (%)"].tolist(), pred_x, table["Kelembapan (%)"].tolist(),
-                              "Prakiraan Kelembapan Tanah (%)", "Kelembapan (%)", "#38bdf8",
-                              None if truth is None else truth["Soil Moisture (%)"].tolist()), "fc_m", c1)
-    show(charts.forecast_line(hist_x, window["Temperature (°C)"].tolist(), pred_x, table["Suhu (°C)"].tolist(),
-                              "Prakiraan Suhu Udara (°C)", "Suhu (°C)", "#fb923c",
-                              None if truth is None else truth["Temperature (°C)"].tolist()), "fc_t", c2)
-    pred_mat = table["Tingkat Kematangan (%)"].tolist() if "Tingkat Kematangan (%)" in table.columns else table["Maturity (%)"].tolist()
-    show(charts.maturity_forecast(pred_x, pred_mat, th), "fc_mat")
-    st.markdown('<div class="section-title">Ringkasan Prakiraan Harian (4 Hari ke Depan)</div>', unsafe_allow_html=True)
-    mat_col = "Tingkat Kematangan (%)" if "Tingkat Kematangan (%)" in table.columns else "Maturity (%)"
-    daily = (table.groupby("Hari", sort=False)
-             .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
-             .round(1).reset_index())
-    daily = daily.rename(columns={
-        "Hari": "Waktu ke Depan",
-        "Kelembapan (%)": "Rata-rata Kelembapan (%)",
-        "Suhu (°C)": "Rata-rata Suhu (°C)",
-        mat_col: "Tingkat Kematangan (%)",
-        "Tahap": "Prakiraan Fase Tanaman"
-    })
-    st.dataframe(daily, hide_index=True, width="stretch")
-    with st.expander("Lihat Tabel Rincian per Waktu Ukur (Pagi 08:00, Siang 12:00, Sore 16:00)"):
-        disp_tbl = table.drop(columns=["Maturity (%)"], errors="ignore").rename(columns={
-            "Langkah": "Urutan ke-",
-            "Hari": "Hari ke Depan",
-            "Jam": "Waktu Ukur",
-            "Tahap": "Fase Tanaman"
+    with st.container(key="fc_tabs_wrap"):
+        tab_ringkasan, tab_grafik, tab_tabel, tab_rekom = st.tabs([
+            "Ringkasan",
+            "Grafik Tren",
+            "Tabel Data",
+            "Rekomendasi",
+        ])
+
+    # ------------------------------------------------------------------ TAB 1: RINGKASAN
+    with tab_ringkasan:
+        r_left, r_right = st.columns([2.6, 1.4], vertical_alignment="center")
+        r_left.markdown(
+            '<div class="section-title" style="margin:0;">Proyeksi Harian 4 Hari ke Depan</div>',
+            unsafe_allow_html=True,
+        )
+        with r_right:
+            vis_mode_sel = st.radio(
+                "Mode Gambar:",
+                ["Foto Asli Kebun", "Ilustrasi Botani AI"],
+                horizontal=True,
+                key="fc_vis_mode",
+                label_visibility="collapsed",
+            )
+        vis_mode = "svg" if "Ilustrasi" in vis_mode_sel else "photo"
+
+        mat_first = float(daily_proj[mat_col].iloc[0]) if len(daily_proj) else mat_last
+        ui.forecast_preview_card(
+            start_day=day_fc,
+            end_day=end_day,
+            first_mat=mat_first,
+            last_mat=mat_last,
+            end_stage_key=end_stage,
+            end_stage_label=label(end_stage),
+            thresholds=th,
+            visual_mode=vis_mode,
+        )
+        ui.forecast_4day_cards(table, start_day=day_fc, thresholds=th, dry=DRY, wet=WET, visual_mode=vis_mode)
+        with st.expander("Estimasi Ukuran Daun & Diameter Tajuk (4 Hari ke Depan)", expanded=False):
+            st.caption("Estimasi morfologi dihitung dari proyeksi tingkat kematangan harian sebagai referensi visual.")
+            ui.forecast_morphology_grid(table, start_day=day_fc)
+
+    # ------------------------------------------------------------------ TAB 2: GRAFIK TREN
+    with tab_grafik:
+        g_ctrl1, g_ctrl2 = st.columns([2.2, 1.3], vertical_alignment="center")
+        with g_ctrl1:
+            chart_mode = st.radio(
+                "Tampilan Grafik",
+                ["Rata-rata Harian", "Per Sesi (Pagi · Siang · Sore)"],
+                horizontal=True,
+                key="fc_chart_mode",
+                label_visibility="collapsed",
+            )
+        with g_ctrl2:
+            show_actual = st.toggle(
+                "Tampilkan data asli pembanding",
+                value=False,
+                key="fc_show_actual",
+                disabled=(truth is None),
+                help="Aktifkan untuk menampilkan garis titik-titik data sensor asli kebun sebagai pembanding.",
+            )
+
+        if chart_mode == "Rata-rata Harian":
+            hist_daily = (
+                window.groupby("Day", sort=True)
+                .agg({"Soil Moisture (%)": "mean", "Temperature (°C)": "mean", MAT: "last"})
+                .round(1)
+                .reset_index()
+            )
+            h_days = [int(d) for d in hist_daily["Day"].tolist()]
+            p_days = [int(d) for d in daily_proj["Actual_Day"].tolist()]
+            p_offs = [int(o) for o in daily_proj["_offset"].tolist()]
+
+            hist_x = list(range(len(h_days)))
+            pred_x = list(range(len(h_days), len(h_days) + len(p_days)))
+
+            hist_moist = hist_daily["Soil Moisture (%)"].tolist()
+            hist_temp = hist_daily["Temperature (°C)"].tolist()
+            hist_mat = hist_daily[MAT].tolist()
+
+            pred_moist = daily_proj["Kelembapan (%)"].tolist()
+            pred_temp = daily_proj["Suhu (°C)"].tolist()
+            pred_mat = daily_proj[mat_col].tolist()
+
+            hist_hover = [f"Hari ke-{d} (Historis)" for d in h_days]
+            pred_hover = [f"Hari ke-{d} (H+{o})" for d, o in zip(p_days, p_offs)]
+
+            tickvals = hist_x + pred_x
+            ticktext = (
+                [f"Hari {d}" for d in h_days[:-1]]
+                + ([f"Hari {h_days[-1]}<br>(Hari Ini)"] if h_days else [])
+                + [f"Hari {d}<br>(H+{o})" for d, o in zip(p_days, p_offs)]
+            )
+
+            actual_moist = None
+            actual_temp = None
+            if show_actual and truth is not None:
+                truth_daily = (
+                    truth.groupby("Day", sort=True)
+                    .agg({"Soil Moisture (%)": "mean", "Temperature (°C)": "mean"})
+                    .round(1)
+                )
+                actual_moist = [
+                    float(truth_daily.loc[d, "Soil Moisture (%)"]) if d in truth_daily.index else None
+                    for d in p_days
+                ]
+                actual_temp = [
+                    float(truth_daily.loc[d, "Temperature (°C)"]) if d in truth_daily.index else None
+                    for d in p_days
+                ]
+            show_pts = True
+            x_axis_title = "Umur Tanaman & Hari Proyeksi (Rata-rata Harian)"
+        else:
+            n_h = len(window)
+            n_p = len(table)
+            hist_x = list(range(n_h))
+            pred_x = list(range(n_h, n_h + n_p))
+
+            hist_moist = window["Soil Moisture (%)"].tolist()
+            hist_temp = window["Temperature (°C)"].tolist()
+            hist_mat = window[MAT].tolist()
+
+            pred_moist = table["Kelembapan (%)"].tolist()
+            pred_temp = table["Suhu (°C)"].tolist()
+            pred_mat = table[mat_col].tolist()
+
+            h_days_seq = [int(d) for d in window["Day"].tolist()]
+            h_times_seq = [str(t) for t in window["Time"].tolist()]
+            p_offs_seq = [int(o) for o in tbl_calc["_offset"].tolist()]
+            p_days_seq = [min(max_cycle_day, day_fc + o) for o in p_offs_seq]
+            p_times_seq = [str(t) for t in table["Jam"].tolist()]
+
+            hist_hover = [f"Hari ke-{d} · {JAM_LABELS_ID.get(t, t)}" for d, t in zip(h_days_seq, h_times_seq)]
+            pred_hover = [
+                f"Hari ke-{d} ({'Hari Ini' if o == 0 else f'H+{o}'}) · {JAM_LABELS_ID.get(t, t)}"
+                for d, o, t in zip(p_days_seq, p_offs_seq, p_times_seq)
+            ]
+
+            # Bangun label tick sumbu X per pergantian hari (bersih & tanpa tumpukan angka mentah)
+            all_days_seq = h_days_seq + p_days_seq
+            all_offs_seq = [None] * n_h + p_offs_seq
+            tickvals, ticktext = [], []
+            seen_days = set()
+            for idx_pos, (d_val, off_val) in enumerate(zip(all_days_seq, all_offs_seq)):
+                if d_val not in seen_days:
+                    seen_days.add(d_val)
+                    if tickvals and idx_pos - tickvals[-1] < 2:
+                        continue
+                    tickvals.append(idx_pos)
+                    if off_val is not None and off_val > 0:
+                        ticktext.append(f"Hari {d_val}<br>(H+{off_val})")
+                    else:
+                        ticktext.append(f"Hari {d_val}")
+
+            actual_moist = truth["Soil Moisture (%)"].tolist() if (show_actual and truth is not None) else None
+            actual_temp = truth["Temperature (°C)"].tolist() if (show_actual and truth is not None) else None
+            show_pts = False
+            x_axis_title = "Umur Tanaman (Pengukuran Pagi 08:00 · Siang 12:00 · Sore 16:00)"
+
+        c1, c2 = st.columns(2, gap="medium")
+        show(
+            charts.forecast_line(
+                hist_x,
+                hist_moist,
+                pred_x,
+                pred_moist,
+                "Tren & Prakiraan Kelembapan Tanah (%)",
+                "Kelembapan (%)",
+                "#38bdf8",
+                actual_y=actual_moist,
+                ideal_range=(DRY, WET),
+                ideal_label=f"Zona Ideal ({DRY:.0f}–{WET:.0f}%)",
+                hist_hover=hist_hover,
+                pred_hover=pred_hover,
+                tickvals=tickvals,
+                ticktext=ticktext,
+                xtitle=x_axis_title,
+                unit="%",
+                show_markers=show_pts,
+                height=370,
+            ),
+            "fc_m",
+            c1,
+        )
+        show(
+            charts.forecast_line(
+                hist_x,
+                hist_temp,
+                pred_x,
+                pred_temp,
+                "Tren & Prakiraan Suhu Udara (°C)",
+                "Suhu (°C)",
+                "#fb923c",
+                actual_y=actual_temp,
+                ideal_range=(22.0, 28.0),
+                ideal_label="Zona Ideal (22–28°C)",
+                hist_hover=hist_hover,
+                pred_hover=pred_hover,
+                tickvals=tickvals,
+                ticktext=ticktext,
+                xtitle=x_axis_title,
+                unit="°C",
+                show_markers=show_pts,
+                height=370,
+            ),
+            "fc_t",
+            c2,
+        )
+        show(
+            charts.maturity_forecast(
+                pred_x,
+                pred_mat,
+                th,
+                hist_x=hist_x,
+                hist_y=hist_mat,
+                tickvals=tickvals,
+                ticktext=ticktext,
+                hist_hover=hist_hover,
+                pred_hover=pred_hover,
+                xtitle=x_axis_title,
+                show_markers=show_pts,
+                height=345,
+            ),
+            "fc_mat",
+        )
+        if show_actual and truth is not None:
+            st.caption("Garis titik-titik abu-abu menampilkan data sensor aktual di kebun sebagai pembanding akurasi prakiraan AI.")
+
+    # ------------------------------------------------------------------ TAB 3: TABEL DATA
+    with tab_tabel:
+        t_head, t_dl = st.columns([2.6, 1.2], vertical_alignment="center")
+        t_head.markdown(
+            '<div class="section-title" style="margin:0;">Ringkasan Prakiraan Harian (4 Hari ke Depan)</div>',
+            unsafe_allow_html=True,
+        )
+        with t_dl:
+            st.download_button(
+                "Unduh Tabel Prakiraan 4 Hari (CSV)",
+                table.to_csv(index=False).encode("utf-8"),
+                file_name="prediksi_4_hari.csv",
+                mime="text/csv",
+                key="fc_dl",
+                use_container_width=True,
+            )
+
+        daily = (
+            table.groupby("Hari", sort=False)
+            .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
+            .round(1)
+            .reset_index()
+        )
+        daily.insert(
+            0,
+            "Umur Tanaman",
+            daily["Hari"].map(lambda h: f"Hari ke-{min(max_cycle_day, day_fc + _fc_day_offset(h))}"),
+        )
+        daily = daily.rename(columns={
+            "Hari": "Waktu ke Depan",
+            "Kelembapan (%)": "Rata-rata Kelembapan (%)",
+            "Suhu (°C)": "Rata-rata Suhu (°C)",
+            mat_col: "Tingkat Kematangan (%)",
+            "Tahap": "Prakiraan Fase Tanaman",
         })
-        st.dataframe(disp_tbl, hide_index=True, width="stretch")
-    st.download_button("Unduh Tabel Prakiraan 4 Hari (CSV)", table.to_csv(index=False).encode("utf-8"),
-                       file_name="prediksi_4_hari.csv", mime="text/csv", key="fc_dl")
-    if truth is not None:
-        ui.banner("info", "Garis titik-titik abu-abu pada grafik menunjukkan data asli di kebun sebagai pembanding ketepatan prakiraan AI.")
+        st.dataframe(daily, hide_index=True, width="stretch")
+
+        with st.expander("Tabel Rincian per Waktu Ukur (Pagi 08:00, Siang 12:00, Sore 16:00)", expanded=True):
+            disp_tbl = table.drop(columns=["Maturity (%)"], errors="ignore").copy()
+            disp_tbl.insert(
+                1,
+                "Umur Tanaman",
+                disp_tbl["Hari"].map(lambda h: f"Hari ke-{min(max_cycle_day, day_fc + _fc_day_offset(h))}"),
+            )
+            disp_tbl = disp_tbl.rename(columns={
+                "Langkah": "Urutan ke-",
+                "Hari": "Hari ke Depan",
+                "Jam": "Waktu Ukur",
+                "Tahap": "Fase Tanaman",
+            })
+            st.dataframe(disp_tbl, hide_index=True, width="stretch")
+
+    # ------------------------------------------------------------------ TAB 4: REKOMENDASI
+    with tab_rekom:
+        ui.banner(
+            "info",
+            f"Rekomendasi berikut disusun dari proyeksi kondisi kebun hingga Hari ke-{end_day} (+4 hari). "
+            f"Gunakan sebagai panduan persiapan penyiraman, suhu, dan panen bersama pengamatan langsung di kebun.",
+        )
+        ui.forecast_recommendation_card(
+            moist_last,
+            temp_last,
+            mat_last,
+            label(end_stage),
+            daily_df=daily_proj,
+            start_day=day_fc,
+            thresholds=th,
+            dry=DRY,
+            wet=WET,
+        )
 
 
 # ================================================================= CNN & foto

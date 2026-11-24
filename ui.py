@@ -3102,38 +3102,173 @@ html, body, .stApp {
 }
 
 /* ================================================================= 4-Day Forecast Visual Plant Cards & LSTM Stage Card */
+/* Panel Kontrol Prakiraan 4 Hari — Terisolasi */
+.st-key-card_fc_ctrl {
+  padding: 16px 20px !important;
+  margin-bottom: 16px !important;
+}
+
+.st-key-card_fc_ctrl .st-key-btn_fc_run .stButton {
+  justify-content: stretch !important;
+}
+
+.st-key-card_fc_ctrl .st-key-btn_fc_run button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.fc-ctrl-divider {
+  margin: 10px 0 12px 0;
+  border-top: 1px solid #e8f0ea;
+}
+
+.fc-ctrl-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5c6f64;
+  margin-bottom: 6px;
+}
+
+.fc-origin-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  background: #f4faf6;
+  border: 1px solid #d5e8dc;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  color: #2c3e35;
+  line-height: 1.4;
+}
+
+.fc-origin-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fc-origin-item strong {
+  color: #14532d;
+  font-weight: 700;
+}
+
+.fc-origin-arrow {
+  color: #15803d;
+  font-weight: 700;
+}
+
+/* Pratinjau Visual Tanaman Tunggal (Tab Ringkasan) */
+.fc-preview-banner {
+  background: #ffffff;
+  border: 1px solid #dce5de;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 10px 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03);
+}
+
+.fc-preview-thumb {
+  width: 92px;
+  height: 92px;
+  min-width: 92px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f4fbf6 0%, #eaf7ee 100%);
+  border: 1px solid #cce8d5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.fc-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 7px;
+  display: block;
+}
+
+.fc-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.fc-preview-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fc-preview-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111c16;
+  letter-spacing: -0.01em;
+}
+
+.fc-preview-desc {
+  font-size: 13px;
+  color: #465b50;
+  line-height: 1.5;
+}
+
+.fc-preview-meta {
+  font-size: 11.5px;
+  color: #5c6f64;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+/* 4 Kartu Harian Sederhana & Lega */
 .fc-plant-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 10px 0 18px 0;
+  gap: 16px;
+  margin: 8px 0 18px 0;
 }
 
 .fc-plant-card {
   background: #ffffff;
-  border: 1px solid #d5e2d9;
-  border-radius: 14px;
-  padding: 14px;
+  border: 1px solid #dce5de;
+  border-radius: 12px;
+  padding: 16px 16px 15px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 2px 6px rgba(17, 28, 22, 0.04);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   position: relative;
-  overflow: hidden;
 }
 
 .fc-plant-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(21, 128, 61, 0.09);
+  box-shadow: 0 6px 16px rgba(21, 128, 61, 0.08);
   border-color: #86efac;
 }
 
 .fc-plant-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
 .fc-day-title-wrap {
@@ -3143,23 +3278,17 @@ html, body, .stApp {
 }
 
 .fc-day-main {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: #14532d;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111c16;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
 }
 
 .fc-day-sub {
-  font-size: 10px;
-  font-weight: 700;
-  color: #15803d;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  display: inline-block;
-  width: fit-content;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5c6f64;
   line-height: 1.2;
 }
 
@@ -3175,109 +3304,41 @@ html, body, .stApp {
 }
 
 .fc-stage-pill {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
-.fc-growth-desc {
-  font-size: 11px;
-  font-weight: 700;
-  color: #166534;
-  background: #f4fbf6;
-  border: 1px solid #dcfce7;
-  border-radius: 6px;
-  padding: 4px 8px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.fc-info-note {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #166534;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
-  line-height: 1.45;
-}
-
-.fc-plant-visual {
-  background: linear-gradient(180deg, #f4fbf6 0%, #ebf7ef 100%);
-  border: 1px solid #dcfce7;
-  border-radius: 11px;
-  padding: 8px;
+.fc-mat-block {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.fc-plant-img-wrap {
-  width: 100%;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 9px;
-  margin-bottom: 8px;
-  background: #f4fbf6;
-  border: 1px solid #cce8d5;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.fc-plant-img-wrap img {
-  max-width: 96%;
-  max-height: 96%;
-  object-fit: contain;
-  transform-origin: bottom center;
-  display: block;
-  transition: transform 0.25s ease;
-}
-
-.fc-plant-card:hover .fc-plant-img-wrap img {
-  filter: brightness(1.03);
-}
-
-.fc-plant-svg-wrap {
-  width: 124px;
-  height: 118px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fc-mat-row {
-  width: 100%;
-  margin-top: 4px;
+  gap: 6px;
 }
 
 .fc-mat-labels {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: #2c3e35;
-  margin-bottom: 3px;
+  color: #5c6f64;
+}
+
+.fc-mat-val {
+  font-size: 21px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .fc-mat-track {
   width: 100%;
   height: 6px;
-  background: #d8ebe0;
+  background: #e6efe9;
   border-radius: 999px;
   overflow: hidden;
 }
@@ -3288,56 +3349,184 @@ html, body, .stApp {
   transition: width 0.3s ease;
 }
 
-.fc-stage-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111c16;
-  text-align: center;
-  margin: 2px 0 0 0;
-}
-
 .fc-metrics-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  padding-top: 6px;
+  gap: 10px;
+  padding-top: 12px;
   border-top: 1px solid #edf2ee;
 }
 
 .fc-metric-box {
-  background: #f8fbf9;
-  border: 1px solid #e4ede7;
-  border-radius: 8px;
-  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .fc-metric-lbl {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  color: #52665b;
+  color: #5c6f64;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .fc-metric-val {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #111c16;
-  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
 }
 
-.fc-morph-footer {
-  background: #f4faf6;
-  border: 1px solid #d8ebe0;
+.fc-metric-status {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Grid Morfologi Daun & Tajuk (Di dalam Expander Tab Ringkasan) */
+.fc-morph-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.fc-morph-card {
+  background: #f8fbf9;
+  border: 1px solid #e2ece5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fc-morph-day {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #14532d;
+  border-bottom: 1px solid #e6eee8;
+  padding-bottom: 5px;
+  margin-bottom: 2px;
+}
+
+.fc-morph-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #465b50;
+}
+
+.fc-morph-row strong {
+  color: #111c16;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tab Rekomendasi — Kartu Antisipasi Ringkas & Jadwal Pantau */
+.fc-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 12px 0 16px 0;
+}
+
+.fc-rec-card {
+  background: #ffffff;
+  border: 1px solid #dce5de;
+  border-top: 3px solid #15803d;
+  border-radius: 11px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03);
+}
+
+.fc-rec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fc-rec-cat {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7f73;
+}
+
+.fc-rec-desc {
+  font-size: 13px;
+  color: #2c3e35;
+  line-height: 1.55;
+}
+
+.fc-watch-bar {
+  background: #ffffff;
+  border: 1px solid #dce5de;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fc-watch-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c3e35;
+}
+
+.fc-watch-pills {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fc-watch-pill {
+  background: #f8fbf9;
+  border: 1px solid #e2ece5;
   border-radius: 8px;
-  padding: 6px 9px;
-  font-size: 11.5px;
-  color: #24352c;
+  padding: 8px 11px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+  font-size: 12px;
+}
+
+.fc-watch-day {
+  font-weight: 700;
+  color: #111c16;
+}
+
+.fc-watch-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Tab spacing & horizontal scroll di layar kecil (scoped khusus Prakiraan 4 Hari) */
+.st-key-fc_tabs_wrap [data-testid="stTabs"] [data-baseweb="tab-list"] {
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+
+.st-key-fc_tabs_wrap [data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {
+  display: none !important;
+}
+
+.st-key-fc_tabs_wrap [data-testid="stTabs"] [data-baseweb="tab-panel"] {
+  padding-top: 14px !important;
 }
 
 /* LSTM Current Stage Visual Hero Card */
@@ -3439,8 +3628,13 @@ html, body, .stApp {
 }
 
 @media (max-width: 1024px) {
-  .fc-plant-grid {
+  .fc-plant-grid,
+  .fc-morph-grid,
+  .fc-watch-pills {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .fc-rec-grid {
+    grid-template-columns: 1fr !important;
   }
   .lstm-visual-hero {
     grid-template-columns: 180px minmax(0, 1fr) !important;
@@ -3451,8 +3645,20 @@ html, body, .stApp {
 }
 
 @media (max-width: 640px) {
-  .fc-plant-grid {
+  .fc-plant-grid,
+  .fc-morph-grid,
+  .fc-watch-pills {
     grid-template-columns: 1fr !important;
+  }
+  .fc-preview-banner {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .fc-preview-thumb {
+    width: 78px !important;
+    height: 78px !important;
+    min-width: 78px !important;
   }
   .lstm-visual-hero {
     grid-template-columns: 1fr !important;
@@ -4346,125 +4552,284 @@ def _growth_desc_from_maturity(mat_pct):
         return "Fase Awal · Bibit &amp; Persemaian"
 
 
-def forecast_4day_cards(table_df, start_day=None, thresholds=None, dry=55.0, wet=76.0, visual_mode="photo"):
-    """Menampilkan 4 kartu visual prediksi 4 hari ke depan (Hari +1 s.d. Hari +4) lengkap dengan visualisasi tanaman Pakcoy."""
+def _fc_extract_daily_4(table_df, start_day=None):
+    """Ekstrak tepat 4 hari proyeksi (H+1 s.d. H+4) dari tabel forecast tanpa mengubah dataframe asli."""
     if table_df is None or len(table_df) == 0:
-        return
-
+        return []
     mat_col = "Tingkat Kematangan (%)" if "Tingkat Kematangan (%)" in table_df.columns else "Maturity (%)"
+
+    def _parse_off(val):
+        s = str(val).strip()
+        if "+" in s:
+            try:
+                return int(s.split("+")[1].strip())
+            except Exception:
+                return 0
+        return 0
+
+    tmp = table_df.copy()
+    tmp["_offset"] = tmp["Hari"].map(_parse_off)
+    sub = tmp[tmp["_offset"] > 0]
+    if sub.empty:
+        sub = tmp
+
     daily = (
-        table_df.groupby("Hari", sort=False)
+        sub.groupby("_offset", sort=True)
         .agg({"Kelembapan (%)": "mean", "Suhu (°C)": "mean", mat_col: "last", "Tahap": "last"})
         .round(1)
         .reset_index()
     )
 
-    cards_html = []
-    for idx, row in daily.iterrows():
-        day_offset = idx + 1
-        if start_day is not None and str(start_day).isdigit():
-            actual_day = min(30, int(start_day) + day_offset)
-            day_title = f"Hari ke-{actual_day}"
-            if day_offset == 1:
-                rel_badge = "Besok (+1 Hari)"
-            elif day_offset == 2:
-                rel_badge = "Lusa (+2 Hari)"
-            elif day_offset == 3:
-                rel_badge = "+3 Hari ke Depan"
-            else:
-                rel_badge = "+4 Hari ke Depan"
-        else:
-            actual_day = day_offset
-            day_title = f"Hari ke-{actual_day}"
-            rel_badge = f"+{day_offset} Hari"
+    has_start = start_day is not None and str(start_day).isdigit()
+    s_day = int(start_day) if has_start else 0
+    rows = []
+    for idx, row in daily.head(4).iterrows():
+        off = int(row["_offset"]) if int(row["_offset"]) > 0 else (idx + 1)
+        actual_day = min(30, s_day + off) if has_start else off
+        rows.append({
+            "offset": off,
+            "actual_day": actual_day,
+            "moist": float(row["Kelembapan (%)"]),
+            "temp": float(row["Suhu (°C)"]),
+            "mat": float(row[mat_col]),
+            "tahap": str(row["Tahap"]),
+        })
+    return rows
 
-        moist_v = float(row["Kelembapan (%)"])
-        temp_v = float(row["Suhu (°C)"])
-        mat_v = float(row[mat_col])
-        st_key, st_lbl, st_col, st_bg, st_bdr, bar_col = _stage_style_from_maturity(mat_v, thresholds)
+
+def forecast_preview_card(start_day, end_day, first_mat, last_mat, end_stage_key, end_stage_label, thresholds=None, visual_mode="photo"):
+    """Menampilkan satu pratinjau visual tanaman (foto asli atau ilustrasi SVG AI) dengan ringkasan singkat 4 hari ke depan."""
+    st_key, st_lbl, st_col, st_bg, st_bdr, _ = _stage_style_from_maturity(last_mat, thresholds)
+    if end_stage_label:
+        st_lbl = strip_emoji(end_stage_label)
+
+    if visual_mode == "svg":
+        vis_html = pakcoy_plant_svg(stage_key=end_stage_key or st_key, maturity_pct=last_mat, uid=f"fc_prev_{int(last_mat)}", size=84)
+        mode_lbl = "Ilustrasi Botani AI"
+    else:
+        img_src = get_pakcoy_stage_img_b64(end_stage_key or st_key, last_mat)
+        if img_src:
+            vis_html = f'<img src="{img_src}" alt="Visual Pakcoy {_e(st_lbl)}" loading="lazy"/>'
+        else:
+            vis_html = pakcoy_plant_svg(stage_key=end_stage_key or st_key, maturity_pct=last_mat, uid=f"fc_prev_{int(last_mat)}", size=84)
+        mode_lbl = "Foto Asli Kebun"
+
+    next_d = min(30, int(start_day) + 1) if str(start_day).isdigit() else 1
+    end_d = int(end_day) if str(end_day).isdigit() else 4
+    growth_desc = _growth_desc_from_maturity(last_mat)
+    delta_mat = round(float(last_mat) - float(first_mat), 1)
+    delta_txt = f"+{delta_mat:.1f}%" if delta_mat >= 0 else f"{delta_mat:.1f}%"
+
+    html_out = (
+        f'<div class="fc-preview-banner">'
+        f'<div class="fc-preview-thumb">{vis_html}</div>'
+        f'<div class="fc-preview-body">'
+        f'<div class="fc-preview-top">'
+        f'<span class="fc-preview-title">Visual Proyeksi Hari ke-{end_d} (H+4)</span>'
+        f'<span class="fc-stage-pill" style="color:{st_col};background:{st_bg};border:1px solid {st_bdr};">{_e(st_lbl)}</span>'
+        f'</div>'
+        f'<div class="fc-preview-desc">'
+        f'Proyeksi Hari ke-{next_d} s.d. Hari ke-{end_d}: kematangan bergerak dari '
+        f'<strong>{float(first_mat):.0f}%</strong> ke <strong>{float(last_mat):.0f}%</strong> ({_e(delta_txt)}) &mdash; {growth_desc}.'
+        f'</div>'
+        f'<div class="fc-preview-meta">'
+        f'<span>Mode tampilan: <strong>{_e(mode_lbl)}</strong></span>'
+        f'<span>&middot;</span>'
+        f'<span>Arahkan kursor pada kartu harian atau buka menu di bawah untuk estimasi daun &amp; tajuk</span>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+    )
+    st.markdown(html_out, unsafe_allow_html=True)
+
+
+def forecast_4day_cards(table_df, start_day=None, thresholds=None, dry=55.0, wet=76.0, visual_mode="photo"):
+    """Menampilkan 4 kartu harian ringkas (H+1 s.d. H+4): Hari ke-N, badge fase, kematangan, kelembapan, dan suhu."""
+    daily_rows = _fc_extract_daily_4(table_df, start_day=start_day)
+    if not daily_rows:
+        return
+
+    cards_html = []
+    for item in daily_rows:
+        off = item["offset"]
+        actual_day = item["actual_day"]
+        moist_v = item["moist"]
+        temp_v = item["temp"]
+        mat_v = item["mat"]
+
+        day_title = f"Hari ke-{actual_day}"
+        rel_sub = "Besok · H+1" if off == 1 else (f"Lusa · H+2" if off == 2 else f"H+{off}")
+
+        _, st_lbl, st_col, st_bg, st_bdr, bar_col = _stage_style_from_maturity(mat_v, thresholds)
         morph = estimate_morphology_from_maturity(mat_v)
 
         if moist_v < dry:
-            m_tag = "Perlu Siram"
-            m_col = "#dc2626"
+            m_tag, m_col = "Perlu Siram", "#dc2626"
         elif moist_v >= wet:
-            m_tag = "Terlalu Basah"
-            m_col = "#0284c7"
+            m_tag, m_col = "Terlalu Basah", "#0284c7"
         else:
-            m_tag = "Ideal"
-            m_col = "#15803d"
+            m_tag, m_col = "Ideal", "#15803d"
 
-        # Skala pertumbuhan dinamis bertahap yang terlihat nyata (+9% per hari)
-        img_scale = round(0.82 + (idx * 0.09) + (min(100.0, max(15.0, mat_v)) / 100.0) * 0.12, 2)
-        if visual_mode == "svg":
-            svg_plant = pakcoy_plant_svg(stage_key=st_key, maturity_pct=mat_v, uid=f"fc4_{idx}_{int(mat_v)}", size=118)
-            plant_visual_html = f'<div class="fc-plant-svg-wrap">{svg_plant}</div>'
+        if temp_v > 30.0:
+            t_tag, t_col = "Terik", "#d97706"
+        elif temp_v < 18.0:
+            t_tag, t_col = "Sejuk", "#0284c7"
         else:
-            img_src = get_pakcoy_stage_img_b64(st_key, mat_v)
-            if img_src:
-                plant_visual_html = (
-                    f'<div class="fc-plant-img-wrap">'
-                    f'<img src="{img_src}" alt="Foto Tanaman Pakcoy {_e(st_lbl)}" style="transform:scale({img_scale});" loading="lazy"/>'
-                    f'</div>'
-                )
-            else:
-                svg_plant = pakcoy_plant_svg(stage_key=st_key, maturity_pct=mat_v, uid=f"fc4_{idx}_{int(mat_v)}", size=118)
-                plant_visual_html = f'<div class="fc-plant-svg-wrap">{svg_plant}</div>'
+            t_tag, t_col = "Nyaman", "#15803d"
 
         bar_w = max(5, min(100, int(round(mat_v))))
+        tooltip_txt = (
+            f"Estimasi panjang daun ±{morph['leaf_len_cm']} cm, "
+            f"lebar daun ±{morph['leaf_wid_cm']} cm, "
+            f"diameter tajuk ±{morph['canopy_dia_cm']} cm"
+        )
 
         card = (
-            f'<div class="fc-plant-card">'
+            f'<div class="fc-plant-card" title="{_e(tooltip_txt)}">'
             f'<div class="fc-plant-card-head">'
             f'<div class="fc-day-title-wrap">'
             f'<span class="fc-day-main">{_e(day_title)}</span>'
-            f'<span class="fc-day-sub">{_e(rel_badge)}</span>'
+            f'<span class="fc-day-sub">{_e(rel_sub)}</span>'
             f'</div>'
             f'<span class="fc-stage-pill" style="color:{st_col};background:{st_bg};border:1px solid {st_bdr};">{_e(st_lbl)}</span>'
             f'</div>'
-            f'<div class="fc-plant-visual">'
-            f'{plant_visual_html}'
-            f'<div class="fc-mat-row">'
-            f'<div class="fc-mat-labels"><span>Tingkat Kematangan</span><span style="color:{st_col};font-weight:700;">{mat_v:.1f}%</span></div>'
+            f'<div class="fc-mat-block">'
+            f'<div class="fc-mat-labels"><span>Kematangan</span><span class="fc-mat-val" style="color:{st_col};">{mat_v:.1f}%</span></div>'
             f'<div class="fc-mat-track"><div class="fc-mat-fill" style="width:{bar_w}%;background:{bar_col};"></div></div>'
             f'</div>'
-            f'</div>'
-            f'<div class="fc-growth-desc">{icon("sprout", 12, color=st_col)} {_growth_desc_from_maturity(mat_v)}</div>'
             f'<div class="fc-metrics-list">'
             f'<div class="fc-metric-box">'
             f'<div class="fc-metric-lbl">{icon("droplets", 12, color="#0284c7")}<span>Kelembapan</span></div>'
-            f'<div class="fc-metric-val">{moist_v:.1f}% <span style="font-size:10.5px;color:{m_col};font-weight:600;">({m_tag})</span></div>'
+            f'<div class="fc-metric-val">{moist_v:.1f}%</div>'
+            f'<div class="fc-metric-status" style="color:{m_col};">{_e(m_tag)}</div>'
             f'</div>'
             f'<div class="fc-metric-box">'
-            f'<div class="fc-metric-lbl">{icon("thermometer", 12, color="#ea580c")}<span>Suhu Udara</span></div>'
+            f'<div class="fc-metric-lbl">{icon("thermometer", 12, color="#d97706")}<span>Suhu</span></div>'
             f'<div class="fc-metric-val">{temp_v:.1f}°C</div>'
+            f'<div class="fc-metric-status" style="color:{t_col};">{_e(t_tag)}</div>'
             f'</div>'
-            f'</div>'
-            f'<div class="fc-morph-footer">'
-            f'<span>{icon("sprout", 13, color="#15803d")} Est. Daun: <strong>±{morph["leaf_len_cm"]} cm</strong></span>'
-            f'<span>Tajuk: <strong>±{morph["canopy_dia_cm"]} cm</strong></span>'
             f'</div>'
             f'</div>'
         )
         cards_html.append(card)
 
-    info_html = ""
-    if start_day is not None and str(start_day).isdigit():
-        s_d = int(start_day)
-        e_d = min(30, s_d + 4)
-        info_html = (
-            f'<div class="fc-info-note">'
-            f'{icon("info", 15, color="#15803d")}'
-            f'<div><strong>Titik Pantau Saat Ini: Hari ke-{s_d}.</strong> '
-            f'Kartu di bawah memprakirakan kondisi tanaman dari <strong>Besok (Hari ke-{s_d+1})</strong> '
-            f'hingga <strong>Hari ke-{e_d} (+4 Hari)</strong>. '
-            f'<span style="color:#2c5a3e;">(Siklus tanam pakcoy adalah 30 hari. Umur 8–20 hari masih tergolong fase Masa Pertumbuhan vegetatif aktif. '
-            f'Gunakan tombol <em>"Menjelang Panen · Hari ke-25"</em> di atas untuk melihat peralihan fase ke Mendekati Panen &amp; Siap Panen).</span>'
+    st.markdown(f'<div class="fc-plant-grid">{"".join(cards_html)}</div>', unsafe_allow_html=True)
+
+
+def forecast_morphology_grid(table_df, start_day=None):
+    """Menampilkan estimasi ukuran daun & diameter tajuk per hari (H+1 s.d. H+4) di dalam expander."""
+    daily_rows = _fc_extract_daily_4(table_df, start_day=start_day)
+    if not daily_rows:
+        return
+
+    items_html = []
+    for item in daily_rows:
+        morph = estimate_morphology_from_maturity(item["mat"])
+        items_html.append(
+            f'<div class="fc-morph-card">'
+            f'<div class="fc-morph-day">Hari ke-{item["actual_day"]} (H+{item["offset"]})</div>'
+            f'<div class="fc-morph-row"><span>Panjang Daun</span><strong>±{morph["leaf_len_cm"]} cm</strong></div>'
+            f'<div class="fc-morph-row"><span>Lebar Daun</span><strong>±{morph["leaf_wid_cm"]} cm</strong></div>'
+            f'<div class="fc-morph-row"><span>Luas Daun</span><strong>±{morph["leaf_area_cm2"]} cm²</strong></div>'
+            f'<div class="fc-morph-row"><span>Diameter Tajuk</span><strong>±{morph["canopy_dia_cm"]} cm</strong></div>'
             f'</div>'
+        )
+    st.markdown(f'<div class="fc-morph-grid">{"".join(items_html)}</div>', unsafe_allow_html=True)
+
+
+def forecast_recommendation_card(moist, temp, mat, stage_label, daily_df=None, start_day=None, thresholds=None, dry=55.0, wet=76.0):
+    """Kartu rekomendasi antisipasi yang dipersingkat untuk tab Rekomendasi halaman Prakiraan 4 Hari."""
+    m_val = float(moist)
+    t_val = float(temp)
+    mat_val = float(mat)
+    t1 = float(thresholds[0]) if thresholds and len(thresholds) >= 2 else 66.5
+    t2 = float(thresholds[1]) if thresholds and len(thresholds) >= 2 else 89.0
+
+    if m_val < dry:
+        w_title, w_col = "Siapkan Penyiraman", "#dc2626"
+        w_desc = f"Kelembapan diprakirakan turun ke {m_val:.0f}% (< {dry:.0f}%). Aktifkan pompa atau tambah penyiraman hingga kembali ideal."
+    elif m_val >= wet:
+        w_title, w_col = "Kurangi Penyiraman", "#0284c7"
+        w_desc = f"Kelembapan diprakirakan tinggi ({m_val:.0f}% ≥ {wet:.0f}%). Matikan pompa dan pastikan drainase lancar agar akar tetap sehat."
+    else:
+        w_title, w_col = "Kelembapan Ideal", "#15803d"
+        w_desc = f"Kelembapan diprakirakan stabil di {m_val:.0f}% (zona ideal {dry:.0f}–{wet:.0f}%). Pertahankan jadwal siram normal."
+
+    if t_val > 30.0:
+        t_title, t_col = "Antisipasi Suhu Terik", "#d97706"
+        t_desc = f"Suhu diprakirakan mencapai {t_val:.1f}°C. Pastikan naungan paranet dan sirkulasi udara berjalan baik agar daun tidak layu."
+    elif t_val < 18.0:
+        t_title, t_col = "Pantau Suhu Sejuk", "#0284c7"
+        t_desc = f"Suhu diprakirakan sejuk ({t_val:.1f}°C). Pantau kelembapan daun pada pagi dan malam hari."
+    else:
+        t_title, t_col = "Suhu Nyaman", "#15803d"
+        t_desc = f"Suhu diprakirakan stabil di {t_val:.1f}°C, mendukung pertumbuhan daun pakcoy secara optimal."
+
+    st_clean = strip_emoji(stage_label)
+    if "Siap Panen" in st_clean or mat_val >= t2:
+        c_title, c_col = f"{st_clean} ({mat_val:.0f}%)", "#15803d"
+        c_desc = "Tanaman mencapai matang optimal. Jadwalkan panen pada pagi hari dalam 1–2 hari agar tangkai tetap segar."
+    elif "Mendekati" in st_clean or mat_val >= t1:
+        c_title, c_col = f"{st_clean} ({mat_val:.0f}%)", "#d97706"
+        c_desc = "Roset daun mulai padat. Jaga kestabilan penyiraman dan siapkan jadwal panen beberapa hari ke depan."
+    else:
+        c_title, c_col = f"{st_clean} ({mat_val:.0f}%)", "#0d9488"
+        c_desc = "Tanaman masih dalam fase pertumbuhan aktif. Jaga kecukupan air, sinar matahari, dan pantau hama secara berkala."
+
+    rec_html = (
+        f'<div class="fc-rec-grid">'
+        f'<div class="fc-rec-card" style="border-top-color:{w_col};">'
+        f'<div class="fc-rec-cat">Penyiraman &amp; Pompa</div>'
+        f'<div class="fc-rec-head" style="color:{w_col};">{icon("droplets", 16, color=w_col)}<span>{_e(w_title)}</span></div>'
+        f'<div class="fc-rec-desc">{_e(w_desc)}</div>'
+        f'</div>'
+        f'<div class="fc-rec-card" style="border-top-color:{t_col};">'
+        f'<div class="fc-rec-cat">Suhu &amp; Naungan</div>'
+        f'<div class="fc-rec-head" style="color:{t_col};">{icon("thermometer", 16, color=t_col)}<span>{_e(t_title)}</span></div>'
+        f'<div class="fc-rec-desc">{_e(t_desc)}</div>'
+        f'</div>'
+        f'<div class="fc-rec-card" style="border-top-color:{c_col};">'
+        f'<div class="fc-rec-cat">Perawatan &amp; Panen</div>'
+        f'<div class="fc-rec-head" style="color:{c_col};">{icon("check-circle", 16, color=c_col)}<span>{_e(c_title)}</span></div>'
+        f'<div class="fc-rec-desc">{_e(c_desc)}</div>'
+        f'</div>'
+        f'</div>'
+    )
+
+    watch_html = ""
+    if daily_df is not None and len(daily_df) > 0:
+        mat_col = "Tingkat Kematangan (%)" if "Tingkat Kematangan (%)" in daily_df.columns else "Maturity (%)"
+        pills = []
+        for idx, r in daily_df.head(4).iterrows():
+            off = int(r["_offset"]) if "_offset" in r else (idx + 1)
+            act_day = int(r["Actual_Day"]) if "Actual_Day" in r else (min(30, int(start_day) + off) if str(start_day).isdigit() else off)
+            mv = float(r["Kelembapan (%)"])
+            tv = float(r["Suhu (°C)"])
+            mtv = float(r[mat_col])
+            if mv < dry:
+                tag, t_bg, t_fg = "Perlu Siram", "#fef2f2", "#dc2626"
+            elif mv >= wet:
+                tag, t_bg, t_fg = "Terlalu Basah", "#f0f9ff", "#0284c7"
+            elif tv > 30.0:
+                tag, t_bg, t_fg = "Suhu Terik", "#fffbeb", "#b45309"
+            elif mtv >= t2:
+                tag, t_bg, t_fg = "Siap Panen", "#dcfce7", "#14532d"
+            else:
+                tag, t_bg, t_fg = "Kondisi Ideal", "#f0fdf4", "#15803d"
+            pills.append(
+                f'<div class="fc-watch-pill">'
+                f'<span class="fc-watch-day">Hari ke-{act_day} (H+{off})</span>'
+                f'<span class="fc-watch-tag" style="background:{t_bg};color:{t_fg};">{_e(tag)}</span>'
+                f'</div>'
+            )
+        watch_html = (
+            f'<div class="fc-watch-bar">'
+            f'<div class="fc-watch-title">Ringkasan Status Harian (H+1 s.d. H+4)</div>'
+            f'<div class="fc-watch-pills">{"".join(pills)}</div>'
             f'</div>'
         )
 
-    st.markdown(f'{info_html}<div class="fc-plant-grid">{"".join(cards_html)}</div>', unsafe_allow_html=True)
+    st.markdown(rec_html + watch_html, unsafe_allow_html=True)
 
 
 def lstm_stage_visual_card(stage_key, stage_label, confidence, truth_label, moist, temp, day_val, time_val, mat_pct=55.0):

@@ -284,55 +284,358 @@ def prob_bar(probs, names, title="Tingkat Keyakinan AI untuk Tiap Fase"):
     return _layout(fig, title, height=230, legend=False, xtitle="Tingkat Keyakinan AI (%)")
 
 
-def forecast_line(hist_x, hist_y, pred_x, pred_y, title, ytitle, color, actual_y=None):
+def forecast_line(
+    hist_x,
+    hist_y,
+    pred_x,
+    pred_y,
+    title,
+    ytitle,
+    color,
+    actual_y=None,
+    ideal_range=None,
+    ideal_label=None,
+    hist_hover=None,
+    pred_hover=None,
+    tickvals=None,
+    ticktext=None,
+    xtitle="Hari Pengamatan & Proyeksi",
+    unit="",
+    show_markers=True,
+    height=370,
+):
     fig = go.Figure()
-    line_col = "#0d9488" if color == "#38bdf8" else "#d97706"
-    h_hover = [_idx_to_day_label(i) for i in hist_x]
-    p_hover = [_idx_to_day_label(i) for i in pred_x]
+    is_moisture = (color == "#38bdf8") or ("Kelembapan" in str(ytitle))
+    hist_col = "#0284c7" if is_moisture else "#d97706"
+    pred_col = "#15803d"
+    actual_col = "#64748b"
+
+    if ideal_range is None:
+        ideal_range = (55.0, 76.0) if is_moisture else (22.0, 28.0)
+    if ideal_label is None:
+        ideal_label = "Zona Ideal (55–76%)" if is_moisture else "Zona Ideal (22–28°C)"
+    if not unit:
+        unit = "%" if is_moisture else "°C"
+
+    h_hover = hist_hover if hist_hover is not None else [_idx_to_day_label(i) for i in hist_x]
+    p_hover = pred_hover if pred_hover is not None else [_idx_to_day_label(i) for i in pred_x]
+
+    # Area bayangan zona ideal (lembut di latar belakang)
+    y0, y1 = float(ideal_range[0]), float(ideal_range[1])
+    fig.add_hrect(
+        y0=y0,
+        y1=y1,
+        fillcolor="rgba(21, 128, 61, 0.075)",
+        line_width=0,
+        layer="below",
+    )
+    fig.add_hline(y=y0, line_dash="dot", line_color="rgba(21, 128, 61, 0.25)", line_width=1)
+    fig.add_hline(y=y1, line_dash="dot", line_color="rgba(21, 128, 61, 0.25)", line_width=1)
+    # Posisi label zona ideal adaptif (menghindari garis data pada sisi kiri)
+    y_mid = (y0 + y1) / 2.0
+    first_y = float(hist_y[0]) if hist_y else y_mid
+    if first_y >= y_mid:
+        lbl_y, lbl_anchor, lbl_shift = y0, "bottom", 3
+    else:
+        lbl_y, lbl_anchor, lbl_shift = y1, "top", -3
+    fig.add_annotation(
+        x=0.01,
+        xref="paper",
+        xanchor="left",
+        y=lbl_y,
+        yref="y",
+        yanchor=lbl_anchor,
+        yshift=lbl_shift,
+        text=ideal_label,
+        showarrow=False,
+        font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10, color="#15803d"),
+        bgcolor="rgba(240, 253, 244, 0.90)",
+        borderpad=2,
+    )
+
+    trace_mode = "lines+markers" if show_markers else "lines"
+    hist_marker = dict(size=6, symbol="circle", color=hist_col, line=dict(width=1.5, color="#ffffff"))
+    pred_marker = dict(size=6.5, symbol="circle", color=pred_col, line=dict(width=1.5, color="#ffffff"))
+
+    # Data Historis (garis solid halus)
     fig.add_trace(go.Scatter(
-        x=hist_x, y=hist_y, mode="lines+markers", name="Data Terakhir (4 Hari)",
-        text=h_hover,
-        hovertemplate="%{text}<br>Riwayat: <b>%{y:.1f}</b><extra></extra>",
-        line=dict(color=line_col, width=2.8)
+        x=hist_x,
+        y=hist_y,
+        mode=trace_mode,
+        name="Historis (4 Hari)",
+        customdata=h_hover,
+        hovertemplate="<b>%{customdata}</b><br>Historis: <b>%{y:.1f}" + unit + "</b><extra></extra>",
+        line=dict(color=hist_col, width=3, shape="spline", smoothing=0.55),
+        marker=hist_marker if show_markers else None,
     ))
-    fig.add_trace(go.Scatter(
-        x=pred_x, y=pred_y, mode="lines+markers", name="Prakiraan AI (4 Hari ke Depan)",
-        text=p_hover,
-        hovertemplate="%{text}<br>Prakiraan AI: <b>%{y:.1f}</b><extra></extra>",
-        line=dict(color="#15803d", width=2.8, dash="dash"),
-        marker=dict(symbol="diamond", size=7, color="#15803d")
-    ))
-    if actual_y is not None:
-        a_hover = p_hover[:len(actual_y)]
+
+    # Garis sambungan halus antara titik terakhir historis & titik pertama prakiraan
+    if hist_x and pred_x:
         fig.add_trace(go.Scatter(
-            x=pred_x[:len(actual_y)], y=actual_y, mode="lines", name="Data Asli (Pembanding)",
-            text=a_hover,
-            hovertemplate="%{text}<br>Data Asli: <b>%{y:.1f}</b><extra></extra>",
-            line=dict(color="#5c6f64", width=2, dash="dot")
+            x=[hist_x[-1], pred_x[0]],
+            y=[hist_y[-1], pred_y[0]],
+            mode="lines",
+            showlegend=False,
+            hoverinfo="skip",
+            line=dict(color=pred_col, width=3, dash="dash"),
         ))
-    if hist_x:
-        fig.add_vline(x=hist_x[-1], line_dash="dot", line_color="#94a89b", annotation_text="Batas Hari Ini", annotation_font_color="#5c6f64")
-    return _layout(fig, title, height=320, xtitle="Urutan Pengukuran Sensor", ytitle=ytitle)
 
-
-def maturity_forecast(pred_x, pred_y, thresholds, last_x=None, last_y=None):
-    fig = go.Figure()
-    p_hover = [_idx_to_day_label(i) for i in pred_x]
-    fig.add_hrect(y0=0, y1=thresholds[0], fillcolor="#0d9488", opacity=0.06, line_width=0,
-                  annotation_text="Zona Masa Pertumbuhan", annotation_position="top left", annotation_font_color="#0d9488")
-    fig.add_hrect(y0=thresholds[0], y1=thresholds[1], fillcolor="#d97706", opacity=0.06, line_width=0,
-                  annotation_text="Zona Mendekati Panen", annotation_position="top left", annotation_font_color="#d97706")
-    fig.add_hrect(y0=thresholds[1], y1=100, fillcolor="#15803d", opacity=0.09, line_width=0,
-                  annotation_text="Zona Siap Panen", annotation_position="top left", annotation_font_color="#15803d")
+    # Prakiraan AI (garis putus-putus halus, tanpa penanda berlian)
     fig.add_trace(go.Scatter(
-        x=pred_x, y=pred_y, mode="lines+markers", name="Prakiraan Kematangan",
-        text=p_hover,
-        hovertemplate="%{text}<br>Prakiraan Kematangan: <b>%{y:.1f}%</b><extra></extra>",
-        line=dict(color="#15803d", width=3), marker=dict(size=8, color="#15803d")
+        x=pred_x,
+        y=pred_y,
+        mode=trace_mode,
+        name="Prakiraan AI (H+1–H+4)",
+        customdata=p_hover,
+        hovertemplate="<b>%{customdata}</b><br>Prakiraan AI: <b>%{y:.1f}" + unit + "</b><extra></extra>",
+        line=dict(color=pred_col, width=3, dash="dash", shape="spline", smoothing=0.55),
+        marker=pred_marker if show_markers else None,
     ))
-    fig.update_yaxes(range=[0, 100])
-    return _layout(fig, "Prakiraan Tingkat Kematangan Tanaman 4 Hari ke Depan", height=340, legend=False,
-                   xtitle="Urutan Pengukuran (12 Pengukuran = 4 Hari ke Depan)", ytitle="Tingkat Kematangan (%)")
+
+    # Garis pembanding data asli (opsional, dikontrol toggle yang default-nya mati)
+    if actual_y is not None and len(actual_y) > 0:
+        valid_pairs = [(px, ay, ph) for px, ay, ph in zip(pred_x, actual_y, p_hover) if ay is not None and not pd.isna(ay)]
+        if valid_pairs:
+            ax_vals = [p[0] for p in valid_pairs]
+            ay_vals = [p[1] for p in valid_pairs]
+            a_hover = [p[2] for p in valid_pairs]
+            if hist_x:
+                fig.add_trace(go.Scatter(
+                    x=[hist_x[-1], ax_vals[0]],
+                    y=[hist_y[-1], ay_vals[0]],
+                    mode="lines",
+                    showlegend=False,
+                    hoverinfo="skip",
+                    line=dict(color=actual_col, width=2, dash="dot"),
+                ))
+            fig.add_trace(go.Scatter(
+                x=ax_vals,
+                y=ay_vals,
+                mode="lines",
+                name="Data Asli Kebun",
+                customdata=a_hover,
+                hovertemplate="<b>%{customdata}</b><br>Data Asli: <b>%{y:.1f}" + unit + "</b><extra></extra>",
+                line=dict(color=actual_col, width=2.2, dash="dot", shape="spline", smoothing=0.5),
+            ))
+
+    # Garis & label "Batas Hari Ini" dengan jarak aman agar tidak menimpa garis data
+    if hist_x:
+        fig.add_vline(
+            x=hist_x[-1],
+            line_dash="dot",
+            line_color="#94a89b",
+            line_width=1.5,
+        )
+        fig.add_annotation(
+            x=hist_x[-1],
+            xref="x",
+            xanchor="left",
+            xshift=7,
+            y=0.98,
+            yref="paper",
+            yanchor="top",
+            text="Batas Hari Ini",
+            showarrow=False,
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10.5, color="#475569"),
+            bgcolor="rgba(255, 255, 255, 0.92)",
+            bordercolor="#dce5de",
+            borderwidth=1,
+            borderpad=3,
+        )
+
+    # Hitung rentang Y dengan ruang lega di atas agar anotasi tidak bertumpuk garis
+    all_vals = [v for v in (list(hist_y) + list(pred_y) + [y0, y1]) if v is not None and not pd.isna(v)]
+    if actual_y is not None:
+        all_vals += [v for v in actual_y if v is not None and not pd.isna(v)]
+    if all_vals:
+        vmin, vmax = min(all_vals), max(all_vals)
+        span = max(vmax - vmin, 6.0 if not is_moisture else 12.0)
+        y_low = max(0.0, vmin - span * 0.16) if is_moisture else vmin - span * 0.18
+        y_high = min(100.0, vmax + span * 0.32) if is_moisture else vmax + span * 0.34
+        fig.update_yaxes(range=[y_low, y_high])
+
+    _layout(fig, title, height=height, legend=True, xtitle=xtitle, ytitle=ytitle)
+    fig.update_layout(
+        title=dict(
+            text=title,
+            x=0.0,
+            y=0.98,
+            xanchor="left",
+            yanchor="top",
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600),
+        ),
+        margin=dict(l=16, r=18, t=84, b=54),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.03,
+            xanchor="left",
+            x=0.0,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#2c3e35"),
+            itemclick="toggleothers",
+        ),
+        hovermode="x unified",
+    )
+    if tickvals is not None and ticktext is not None:
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=tickvals,
+            ticktext=ticktext,
+            tickangle=0,
+            title_standoff=12,
+        )
+    else:
+        fig.update_xaxes(title_standoff=12)
+    return fig
+
+
+def maturity_forecast(
+    pred_x,
+    pred_y,
+    thresholds,
+    last_x=None,
+    last_y=None,
+    hist_x=None,
+    hist_y=None,
+    tickvals=None,
+    ticktext=None,
+    hist_hover=None,
+    pred_hover=None,
+    xtitle="Hari Pengamatan & Proyeksi (H+1 s.d. H+4)",
+    show_markers=True,
+    height=345,
+):
+    fig = go.Figure()
+    t1, t2 = float(thresholds[0]), float(thresholds[1])
+    p_hover = pred_hover if pred_hover is not None else [_idx_to_day_label(i) for i in pred_x]
+    h_hover = hist_hover if hist_hover is not None else ([_idx_to_day_label(i) for i in hist_x] if hist_x else [])
+
+    # Zona kematangan dengan warna lembut agar garis kurva tetap dominan & mudah dibaca
+    fig.add_hrect(y0=0, y1=t1, fillcolor="rgba(13, 148, 136, 0.045)", line_width=0, layer="below")
+    fig.add_hrect(y0=t1, y1=t2, fillcolor="rgba(217, 119, 6, 0.055)", line_width=0, layer="below")
+    fig.add_hrect(y0=t2, y1=100, fillcolor="rgba(21, 128, 61, 0.075)", line_width=0, layer="below")
+
+    fig.add_hline(y=t1, line_dash="dot", line_color="rgba(217, 119, 6, 0.35)", line_width=1)
+    fig.add_hline(y=t2, line_dash="dot", line_color="rgba(21, 128, 61, 0.40)", line_width=1)
+
+    zone_labels = [
+        (t1 * 0.48, f"Masa Pertumbuhan (< {t1:.1f}%)", "#0f766e"),
+        ((t1 + t2) / 2.0, f"Mendekati Panen ({t1:.1f}–{t2:.1f}%)", "#b45309"),
+        (min(97.0, t2 + (100.0 - t2) * 0.52), f"Siap Panen (≥ {t2:.1f}%)", "#15803d"),
+    ]
+    for zy, ztxt, zcol in zone_labels:
+        fig.add_annotation(
+            x=0.99,
+            xref="paper",
+            xanchor="right",
+            y=zy,
+            yref="y",
+            yanchor="middle",
+            text=ztxt,
+            showarrow=False,
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10.5, color=zcol),
+            bgcolor="rgba(255, 255, 255, 0.65)",
+            borderpad=2,
+        )
+
+    trace_mode = "lines+markers" if show_markers else "lines"
+
+    if hist_x and hist_y:
+        fig.add_trace(go.Scatter(
+            x=hist_x,
+            y=hist_y,
+            mode=trace_mode,
+            name="Historis (4 Hari)",
+            customdata=h_hover,
+            hovertemplate="<b>%{customdata}</b><br>Kematangan Historis: <b>%{y:.1f}%</b><extra></extra>",
+            line=dict(color="#0d9488", width=3, shape="spline", smoothing=0.5),
+            marker=dict(size=6, symbol="circle", color="#0d9488", line=dict(width=1.5, color="#ffffff")) if show_markers else None,
+        ))
+        if pred_x:
+            fig.add_trace(go.Scatter(
+                x=[hist_x[-1], pred_x[0]],
+                y=[hist_y[-1], pred_y[0]],
+                mode="lines",
+                showlegend=False,
+                hoverinfo="skip",
+                line=dict(color="#15803d", width=3, dash="dash"),
+            ))
+        fig.add_vline(
+            x=hist_x[-1],
+            line_dash="dot",
+            line_color="#94a89b",
+            line_width=1.5,
+        )
+        fig.add_annotation(
+            x=hist_x[-1],
+            xref="x",
+            xanchor="left",
+            xshift=7,
+            y=0.98,
+            yref="paper",
+            yanchor="top",
+            text="Batas Hari Ini",
+            showarrow=False,
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10.5, color="#475569"),
+            bgcolor="rgba(255, 255, 255, 0.92)",
+            bordercolor="#dce5de",
+            borderwidth=1,
+            borderpad=3,
+        )
+
+    fig.add_trace(go.Scatter(
+        x=pred_x,
+        y=pred_y,
+        mode=trace_mode,
+        name="Prakiraan Kematangan (H+1–H+4)",
+        customdata=p_hover,
+        hovertemplate="<b>%{customdata}</b><br>Prakiraan Kematangan: <b>%{y:.1f}%</b><extra></extra>",
+        line=dict(color="#15803d", width=3.2, dash="dash" if (hist_x and hist_y) else "solid", shape="spline", smoothing=0.5),
+        marker=dict(size=7, symbol="circle", color="#15803d", line=dict(width=1.5, color="#ffffff")) if show_markers else None,
+    ))
+
+    fig.update_yaxes(range=[0, 106], ticksuffix="%")
+    _layout(
+        fig,
+        "Prakiraan Tingkat Kematangan Tanaman 4 Hari ke Depan",
+        height=height,
+        legend=bool(hist_x and hist_y),
+        xtitle=xtitle,
+        ytitle="Tingkat Kematangan (%)",
+    )
+    fig.update_layout(
+        title=dict(
+            text="Prakiraan Tingkat Kematangan Tanaman 4 Hari ke Depan",
+            x=0.0,
+            y=0.98,
+            xanchor="left",
+            yanchor="top",
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600),
+        ),
+        margin=dict(l=16, r=18, t=82 if (hist_x and hist_y) else 56, b=54),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.03,
+            xanchor="left",
+            x=0.0,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#2c3e35"),
+        ),
+        hovermode="x unified",
+    )
+    if tickvals is not None and ticktext is not None:
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=tickvals,
+            ticktext=ticktext,
+            tickangle=0,
+            title_standoff=12,
+        )
+    else:
+        fig.update_xaxes(title_standoff=12)
+    return fig
 
 
 def confusion_fig(cm, names, title):
