@@ -755,18 +755,45 @@ span[class*="Icon"],
 
 .chat-header-title {
   font-size: 15px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   color: #111c16 !important;
   line-height: 1.25 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
 }
 
 .chat-header-sub {
   font-size: 12.5px !important;
   color: #5c6f64 !important;
   line-height: 1.35 !important;
+  margin-top: 2px !important;
 }
 
-/* Trash Icon Button */
+.chat-status-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  color: #15803d !important;
+  background-color: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  line-height: 1.2 !important;
+}
+
+.chat-status-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background-color: #22c55e !important;
+  display: inline-block !important;
+}
+
+/* Reset Chat Button */
 .st-key-btn_clear_chat {
   display: flex !important;
   justify-content: flex-end !important;
@@ -774,44 +801,46 @@ span[class*="Icon"],
 }
 
 .st-key-btn_clear_chat button {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  width: 36px !important;
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d5e0d8 !important;
+  box-shadow: 0 1px 2px rgba(17, 28, 22, 0.03) !important;
+  width: auto !important;
+  min-width: 112px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
   border-radius: 8px !important;
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  gap: 6px !important;
   cursor: pointer !important;
-  position: relative !important;
-  color: transparent !important;
+  color: #2c3e35 !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+
+.st-key-btn_clear_chat button::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  background-color: #5c6f64 !important;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6'/%3E%3Cpath d='M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2'/%3E%3C/svg%3E") no-repeat center / contain !important;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6'/%3E%3Cpath d='M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2'/%3E%3C/svg%3E") no-repeat center / contain !important;
+  transition: background-color 0.15s ease !important;
 }
 
 .st-key-btn_clear_chat button:hover {
   background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
 }
 
-.st-key-btn_clear_chat button::after {
-  content: "" !important;
-  display: block !important;
-  width: 18px !important;
-  height: 18px !important;
-  background-color: #5c6f64 !important;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6'/%3E%3Cpath d='M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2'/%3E%3Cline x1='10' x2='10' y1='11' y2='17'/%3E%3Cline x1='14' x2='14' y1='11' y2='17'/%3E%3C/svg%3E") !important;
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6'/%3E%3Cpath d='M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2'/%3E%3Cline x1='10' x2='10' y1='11' y2='17'/%3E%3Cline x1='14' x2='14' y1='11' y2='17'/%3E%3C/svg%3E") !important;
-  -webkit-mask-size: contain !important;
-  mask-size: contain !important;
-  -webkit-mask-repeat: no-repeat !important;
-  mask-repeat: no-repeat !important;
-  -webkit-mask-position: center !important;
-  mask-position: center !important;
-  transition: background-color 0.15s ease !important;
-}
-
-.st-key-btn_clear_chat button:hover::after {
+.st-key-btn_clear_chat button:hover::before {
   background-color: #dc2626 !important;
 }
 
@@ -879,8 +908,8 @@ span[class*="Icon"],
   align-items: center !important;
   box-shadow: rgba(17, 28, 22, 0.02) 0 1px 2px !important;
   transition: all 0.15s ease !important;
-  min-height: 54px !important;
-  height: 54px !important;
+  min-height: 56px !important;
+  height: auto !important;
   white-space: normal !important;
   margin: 0 !important;
   display: flex !important;
@@ -1172,16 +1201,24 @@ span[class*="Icon"],
   }
 }
 
-/* Small In-flow Error Notice */
+/* Small In-flow Error Notice (Clean single-frame inside assistant bubble) */
+[data-testid="stChatMessage"]:not(:has([data-testid*="User"])) [data-testid="stChatMessageContent"]:has(.chat-error-notice) {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 .chat-error-notice {
   background-color: #fef2f2 !important;
-  border-left: 3px solid #dc2626 !important;
-  color: #111c16 !important;
+  border: 1px solid #fecaca !important;
+  border-left: 3.5px solid #dc2626 !important;
+  color: #7f1d1d !important;
   font-size: 13px !important;
-  padding: 10px 14px !important;
-  border-radius: 0 8px 8px 0 !important;
-  margin: 8px 0 !important;
-  line-height: 1.45 !important;
+  padding: 11px 14px !important;
+  border-radius: 8px !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
 }
 
 /* 3. Area Input */
@@ -1551,24 +1588,133 @@ span[class*="Icon"],
   clear: both !important;
 }
 
+/* Sidebar AI Model Status Pill & Security Notice */
+.sb-status-pill {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin: 8px 0 4px 0 !important;
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  box-sizing: border-box !important;
+}
+
+.sb-status-pill.ok {
+  background-color: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+  color: #166534 !important;
+}
+
+.sb-status-pill.warn {
+  background-color: #fffbeb !important;
+  border: 1px solid #fde68a !important;
+  color: #92400e !important;
+}
+
+.sb-status-dot {
+  width: 7px !important;
+  height: 7px !important;
+  min-width: 7px !important;
+  border-radius: 50% !important;
+  display: inline-block !important;
+}
+
+.sb-status-pill.ok .sb-status-dot {
+  background-color: #16a34a !important;
+}
+
+.sb-status-pill.warn .sb-status-dot {
+  background-color: #d97706 !important;
+}
+
+.sb-sec-note {
+  margin: 8px 0 4px 0 !important;
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  background-color: #fffbeb !important;
+  border: 1px solid #fde68a !important;
+  color: #92400e !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  box-sizing: border-box !important;
+}
+
+.sb-sec-note code {
+  background-color: #fef3c7 !important;
+  color: #78350f !important;
+  padding: 1px 4px !important;
+  border-radius: 4px !important;
+  font-size: 10.5px !important;
+}
+
+/* Pump Control Mode Pill */
+.pump-ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2c3e35;
+}
+
+.pump-ctrl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pump-ctrl-badge.auto {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+.pump-ctrl-badge.on {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.pump-ctrl-badge.off {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+.pump-ctrl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 /* Sidebar Footer Caption */
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
 [data-testid="stSidebar"] .stCaption {
-  margin-top: 10px !important;
+  margin-top: 8px !important;
   padding: 0 !important;
   display: block !important;
   clear: both !important;
-  text-align: center !important;
+  text-align: left !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,
 [data-testid="stSidebar"] .stCaption p {
   font-size: 11px !important;
-  color: #6b7f73 !important;
+  color: #5c6f64 !important;
   line-height: 1.4 !important;
   margin: 0 !important;
   padding: 0 !important;
-  text-align: center !important;
+  text-align: left !important;
 }
 
 /* Button SVG icons */
@@ -1602,7 +1748,10 @@ span[class*="Icon"],
 
 .st-key-eks_dl button::before,
 .st-key-fc_dl button::before,
-.st-key-scan_dl button::before {
+.st-key-scan_dl button::before,
+.st-key-btn_dash_dl_csv button::before,
+.st-key-btn_dl_1400_csv button::before,
+.st-key-btn_dl_raw_csv button::before {
   content: "" !important;
   display: inline-block !important;
   width: 15px !important;
@@ -2521,11 +2670,18 @@ div[class*="scan_btn"] button:hover {
   color: var(--ink) !important;
 }
 
-/* Tabs */
+/* Tabs (Unified Executive Style Across All Pages) */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-  gap: 8px !important;
+  gap: 6px !important;
   border-bottom: 1px solid var(--hairline) !important;
   background: transparent !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+  margin-bottom: 4px !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {
+  display: none !important;
 }
 
 [data-testid="stTabs"] [data-baseweb="tab"] {
@@ -2533,16 +2689,100 @@ div[class*="scan_btn"] button:hover {
   font-size: 13.5px !important;
   color: var(--ink-mute) !important;
   font-weight: 500 !important;
-  padding: 8px 16px !important;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
+  padding: 9px 16px !important;
+  border-radius: 8px 8px 0 0 !important;
   background: transparent !important;
   border: none !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"]:hover {
+  color: #166534 !important;
+  background-color: #f0fdf4 !important;
 }
 
 [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
   color: #15803d !important;
+  font-weight: 700 !important;
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.85) 0%, rgba(255, 255, 255, 0) 100%) !important;
+  border-bottom: 2.5px solid #15803d !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+  padding-top: 14px !important;
+}
+
+/* Global Clean White Card Frame for Plotly Charts */
+[data-testid="stMainBlockContainer"] [data-testid="stPlotlyChart"] {
+  background-color: #ffffff !important;
+  border: 1px solid #dce5de !important;
+  border-radius: 12px !important;
+  padding: 10px 12px 6px 12px !important;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03) !important;
+  margin-bottom: 14px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Clean Card Frame for Uploaded / Segmented Photos (CNN Page) */
+[data-testid="stMainBlockContainer"] [data-testid="stImage"] {
+  background-color: #ffffff !important;
+  border: 1px solid #dce5de !important;
+  border-radius: 12px !important;
+  padding: 10px !important;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03) !important;
+  margin-bottom: 12px !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stImage"] img {
+  border-radius: 8px !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stImageCaption"] {
+  font-size: 12px !important;
   font-weight: 600 !important;
-  border-bottom: 2px solid #15803d !important;
+  color: #465b50 !important;
+  margin-top: 6px !important;
+}
+
+/* Markdown Tables (e.g., Panduan Agronomi 30 Hari) */
+[data-testid="stMainBlockContainer"] [data-testid="stMarkdownContainer"] table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #dce5de !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  font-size: 13px !important;
+  margin: 10px 0 14px 0 !important;
+  box-shadow: 0 1px 3px rgba(17, 28, 22, 0.03) !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stMarkdownContainer"] table thead th {
+  background-color: #f2f7f3 !important;
+  color: #14532d !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid #d5e2d9 !important;
+  text-align: left !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stMarkdownContainer"] table tbody td {
+  padding: 10px 12px !important;
+  border-bottom: 1px solid #edf2ee !important;
+  color: #24352c !important;
+  line-height: 1.45 !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stMarkdownContainer"] table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+[data-testid="stMainBlockContainer"] [data-testid="stMarkdownContainer"] table tbody tr:hover td {
+  background-color: #f8fbf9 !important;
 }
 
 /* Dataframe */
@@ -2779,16 +3019,34 @@ hr {
   letter-spacing: 0.02em;
 }
 
-.ai-narrative-body p {
-  font-size: 13.8px !important;
-  line-height: 1.72 !important;
-  color: #24352c !important;
-  margin: 0 0 13px 0 !important;
-  text-align: justify;
+.ai-narrative-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.ai-narrative-body p:last-child {
-  margin-bottom: 0 !important;
+.ai-narrative-sec {
+  background: #f8fbf9;
+  border: 1px solid #e6efe9;
+  border-radius: 9px;
+  padding: 12px 15px;
+}
+
+.ai-narrative-sec-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #15803d;
+  margin-bottom: 5px;
+}
+
+.ai-narrative-body p {
+  font-size: 13.5px !important;
+  line-height: 1.68 !important;
+  color: #24352c !important;
+  margin: 0 !important;
+  text-align: left;
 }
 
 .ai-narrative-body strong {
@@ -4323,7 +4581,7 @@ def ai_plant_analysis_card(stage_key, stage_label, confidence, readiness_idx, me
         )
 
     p3 = (
-        f"<strong>Saran Perawatan Air, Nutrisi &amp; Lingkungan:</strong> Untuk menjaga pertumbuhan pakcoy tetap optimal, "
+        f"Untuk menjaga pertumbuhan pakcoy tetap optimal, "
         f"pastikan kelembapan media tanam selalu berada pada rentang ideal <strong>55% hingga 76%</strong> dengan jadwal "
         f"penyiraman teratur pada pagi hari (pukul 07:00–08:00) dan sore hari (pukul 16:00–17:00). Selanjutnya, {nutrisi_advice}. "
         f"Jaga pH media tanam atau air nutrisi pada kisaran <strong>pH 6,0–6,8</strong> serta pertahankan suhu lingkungan "
@@ -4354,7 +4612,7 @@ def ai_plant_analysis_card(stage_key, stage_label, confidence, readiness_idx, me
             "dan kutu daun (<em>Aphids</em>) sejak dini, sehingga tanaman dapat tumbuh mulus hingga waktu panen optimal pada <strong>Hari ke-30</strong>."
         )
 
-    p4 = f"<strong>Tindakan Pemeliharaan Tajuk &amp; Target Panen:</strong> {Sanitasi_txt} {panen_txt}"
+    p4 = f"{Sanitasi_txt} {panen_txt}"
 
     html_out = (
         f'<div class="ai-narrative-box">'
@@ -4363,10 +4621,10 @@ def ai_plant_analysis_card(stage_key, stage_label, confidence, readiness_idx, me
         f'<span class="ai-narrative-badge">Laporan Diagnostik AI Lengkap</span>'
         f'</div>'
         f'<div class="ai-narrative-body">'
-        f'<p>{p1}</p>'
-        f'<p>{p2}</p>'
-        f'<p>{p3}</p>'
-        f'<p>{p4}</p>'
+        f'<div class="ai-narrative-sec"><div class="ai-narrative-sec-title">1. Estimasi Morfologi &amp; Struktur Tajuk</div><p>{p1}</p></div>'
+        f'<div class="ai-narrative-sec"><div class="ai-narrative-sec-title">2. Kesehatan Warna Daun &amp; Proksi Klorofil (HSV)</div><p>{p2}</p></div>'
+        f'<div class="ai-narrative-sec"><div class="ai-narrative-sec-title">3. Saran Air, Nutrisi &amp; Lingkungan</div><p>{p3}</p></div>'
+        f'<div class="ai-narrative-sec"><div class="ai-narrative-sec-title">4. Pemeliharaan Tajuk &amp; Target Panen</div><p>{p4}</p></div>'
         f'</div>'
         f'</div>'
     )

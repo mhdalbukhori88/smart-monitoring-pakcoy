@@ -14,9 +14,20 @@ import ui
 
 logger = logging.getLogger("ai_assistant")
 
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_BACKUP_MODEL = "gemini-2.5-flash-lite"
+GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite"
+FALLBACK_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
 DEPRECATED_MODELS = {
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-pro-exp",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "gemini-1.0-pro",
@@ -141,7 +152,7 @@ def parse_api_error(err: Exception, key_val: str = None) -> tuple[str, str]:
     if code in (400, 401, 403) or "API_KEY_INVALID" in err_str or "PERMISSION_DENIED" in err_str:
         user_msg = "API Key tidak valid atau tidak memiliki izin akses. Silakan periksa kembali konfigurasi GEMINI_API_KEY di file .streamlit/secrets.toml."
     elif code == 404 or "NOT_FOUND" in err_str:
-        user_msg = "Model AI tidak ditemukan atau telah kedaluwarsa. Sistem sedang mencoba mengalihkan ke model cadangan."
+        user_msg = "Model AI tidak ditemukan pada akun API key ini. Pastikan GEMINI_API_KEY aktif di Google AI Studio atau perbarui GEMINI_MODEL di Secrets."
     elif code == 429 or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower() or "rate limit" in err_str.lower():
         user_msg = "Batas kuota harian atau permintaan (rate limit) Gemini API telah tercapai. Silakan coba beberapa saat lagi."
     elif "timeout" in err_str.lower() or "connection" in err_str.lower() or "network" in err_str.lower() or code in (502, 503, 504):
@@ -158,6 +169,63 @@ def parse_api_error(err: Exception, key_val: str = None) -> tuple[str, str]:
 def _cached_genai_client(_key_sig: str, api_key: str):
     """Membuat dan menyimpan cache instance genai.Client agar tidak diinisialisasi ulang setiap rerun."""
     return genai.Client(api_key=api_key)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _discover_active_models(_key_sig: str, _client) -> list[str]:
+    """Menemukan secara otomatis model Gemini teks aktif yang mendukung generateContent untuk API key ini."""
+    skip_tokens = (
+        "embedding", "imagen", "image", "veo", "tts", "audio", "aqa",
+        "robotics", "computer-use", "deep-research", "live", "native", "vision", "learnlm",
+    )
+    found = []
+    try:
+        for m in _client.models.list():
+            raw_name = getattr(m, "name", "") or ""
+            short = raw_name.replace("models/", "").strip()
+            low = short.lower()
+            if not low.startswith("gemini-"):
+                continue
+            if low in DEPRECATED_MODELS or any(low.startswith(dep) for dep in DEPRECATED_MODELS):
+                continue
+            if any(tok in low for tok in skip_tokens):
+                continue
+            actions = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if actions and not any("generatecontent" in str(a).lower() for a in actions):
+                continue
+            found.append(short)
+    except Exception as exc:
+        logger.info("Auto-discovery model Gemini dilewati: %s", exc)
+        return []
+
+    def _rank(name: str):
+        low = name.lower()
+        # Prioritaskan model stabil versi terbaru (flash -> flash-lite -> pro); hindari preview/exp kecuali tidak ada stabil
+        is_preview = 1 if any(k in low for k in ("preview", "exp", "latest")) else 0
+        tier = 0 if ("flash" in low and "lite" not in low) else (1 if "flash-lite" in low else (2 if "pro" in low else 3))
+        ver_m = re.search(r"gemini-(\d+)(?:\.(\d+))?", low)
+        major = int(ver_m.group(1)) if ver_m else 0
+        minor = int(ver_m.group(2)) if (ver_m and ver_m.group(2)) else 0
+        return (is_preview, tier, -major, -minor, low)
+
+    return sorted(dict.fromkeys(found), key=_rank)
+
+
+def _build_candidate_models(primary_model: str | None, backup_model: str | None, discovered: list[str]) -> list[str]:
+    """Menyusun urutan model yang akan dicoba: utamakan model yang terkonfirmasi aktif pada API key."""
+    discovered_set = set(discovered)
+    candidates = []
+    if discovered:
+        for m_name in (primary_model, backup_model):
+            if m_name and m_name in discovered_set and m_name not in candidates:
+                candidates.append(m_name)
+        for m_name in discovered[:6]:
+            if m_name not in candidates:
+                candidates.append(m_name)
+    for m_name in [primary_model, backup_model] + FALLBACK_MODELS:
+        if m_name and m_name not in candidates:
+            candidates.append(m_name)
+    return candidates
 
 
 def _is_debug_enabled() -> bool:
@@ -276,22 +344,22 @@ def render_ai_assistant():
 
     # BINGKAI UTAMA SATU KARTU
     with st.container(key="chat_main_card"):
-        # 1. HEADER BINGKAI (64px, icon 36px, title, sub, trash button)
+        # 1. HEADER BINGKAI (ikon 36px, judul, subjudul, badge status + tombol Reset Chat yang jelas)
         with st.container(key="chat_header_row"):
-            c_left, c_right = st.columns([8, 1], vertical_alignment="center")
+            c_left, c_right = st.columns([5.8, 1.4], vertical_alignment="center")
             with c_left:
                 st.markdown(
                     f'<div class="chat-header-info">'
                     f'<div class="chat-header-icon-box">{ui.icon("message-square", 18, color="#15803d")}</div>'
                     f'<div>'
-                    f'<div class="chat-header-title">Asisten Kebun AI</div>'
-                    f'<div class="chat-header-sub">Konsultasi perawatan tanaman pakcoy & panduan sistem</div>'
+                    f'<div class="chat-header-title">Asisten Kebun AI <span class="chat-status-pill"><span class="chat-status-dot"></span>Aktif</span></div>'
+                    f'<div class="chat-header-sub">Konsultasi perawatan tanaman pakcoy &amp; panduan sistem</div>'
                     f'</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
             with c_right:
-                if st.button("", key="btn_clear_chat", help="Hapus percakapan"):
+                if st.button("Reset Chat", key="btn_clear_chat", help="Mulai ulang percakapan baru", use_container_width=True):
                     st.session_state["ai_chat_history"] = []
                     st.session_state.pop("pending_prompt", None)
                     st.rerun()
@@ -336,11 +404,17 @@ def render_ai_assistant():
                 with st.chat_message("user"):
                     st.markdown(new_prompt)
 
-                # Siapkan riwayat percakapan (format SDK: role 'user' dan 'model', dimulai dari 'user')
+                # Siapkan riwayat percakapan (format SDK: role 'user' dan 'model', bergantian & dimulai dari 'user')
                 recent_history = []
                 for m in st.session_state["ai_chat_history"][-10:]:
                     role = "user" if m["role"] == "user" else "model"
-                    recent_history.append({"role": role, "text": m["text"]})
+                    txt = str(m.get("text", "")).strip()
+                    if not txt:
+                        continue
+                    if recent_history and recent_history[-1]["role"] == role:
+                        recent_history[-1]["text"] += "\n\n" + txt
+                    else:
+                        recent_history.append({"role": role, "text": txt})
 
                 # Pastikan pesan pertama adalah 'user'
                 while recent_history and recent_history[0]["role"] != "user":
@@ -368,15 +442,15 @@ def render_ai_assistant():
                         max_output_tokens=1024,
                     )
 
-                    models_to_try = []
-                    for m_name in [primary_model, backup_model, GEMINI_MODEL, GEMINI_BACKUP_MODEL]:
-                        if m_name and m_name not in models_to_try:
-                            models_to_try.append(m_name)
+                    key_sig = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:16] if raw_key else "none"
+                    discovered = _discover_active_models(key_sig, client)
+                    models_to_try = _build_candidate_models(primary_model, backup_model, discovered)
 
                     full_reply = ""
                     error_caught = None
+                    fatal_auth_error = False
 
-                    for mod_idx, target_model in enumerate(models_to_try):
+                    for target_model in models_to_try:
                         max_attempts = 2
                         success = False
                         for attempt in range(max_attempts):
@@ -401,24 +475,32 @@ def render_ai_assistant():
                             except errors.ClientError as ce:
                                 error_caught = ce
                                 typing_slot.empty()
-                                logger.warning("ClientError on %s (code %s): %s", target_model, getattr(ce, "code", None), ce)
+                                ce_code = getattr(ce, "code", None)
+                                logger.warning("ClientError on %s (code %s): %s", target_model, ce_code, redact_key(str(ce), raw_key))
+                                if ce_code in (401, 403):
+                                    fatal_auth_error = True
+                                    break
+                                if ce_code == 429 and attempt == 0:
+                                    time.sleep(1.0)
+                                    continue
                                 break
                             except errors.ServerError as se:
                                 error_caught = se
                                 typing_slot.empty()
-                                if se.code == 429 and attempt == 0:
-                                    logger.info("Rate limit (429) hit. Retrying in 1.5s...")
-                                    time.sleep(1.5)
+                                if getattr(se, "code", None) in (429, 503) and attempt == 0:
+                                    time.sleep(1.2)
                                     continue
                                 break
                             except Exception as ex:
                                 error_caught = ex
                                 typing_slot.empty()
-                                logger.warning("Exception on %s: %s", target_model, ex)
+                                logger.warning("Exception on %s: %s", target_model, redact_key(str(ex), raw_key))
                                 break
 
                         if success:
                             error_caught = None
+                            break
+                        if fatal_auth_error:
                             break
 
                     typing_slot.empty()

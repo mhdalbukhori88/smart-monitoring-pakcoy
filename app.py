@@ -438,11 +438,20 @@ def sidebar():
         ("LSTM Prakiraan", m.get("fc") is not None),
         ("CNN Citra", m.get("cnn") is not None),
     ]
-    if any(not ok for _, ok in ready_items):
+    ready_count = sum(1 for _, ok in ready_items if ok)
+    if ready_count < len(ready_items):
         missing_lbl = ", ".join(name for name, ok in ready_items if not ok)
-        sb.warning(f"Model belum aktif: {missing_lbl}")
+        sb.markdown(
+            f'<div class="sb-status-pill warn"><span class="sb-status-dot"></span>'
+            f'<span>{ready_count}/3 Model Aktif &middot; Kurang: {ui._e(missing_lbl)}</span></div>',
+            unsafe_allow_html=True,
+        )
     else:
-        sb.caption("Status AI: 3/3 model aktif (LSTM + CNN)")
+        sb.markdown(
+            '<div class="sb-status-pill ok"><span class="sb-status-dot"></span>'
+            '<span>3/3 Model AI Aktif &middot; LSTM + CNN</span></div>',
+            unsafe_allow_html=True,
+        )
 
     sb.markdown('<div class="micro-cap">AKUN PENGGUNA</div>', unsafe_allow_html=True)
     auth.render_sidebar_user_profile()
@@ -559,24 +568,24 @@ def live_section():
         btn_play = c_btn2.button(toggle_lbl, use_container_width=True, key="btn_live_play")
 
         st.markdown('<div style="margin:10px 0 6px 0;border-top:1px dashed #e2ebe4;padding-top:8px;"></div>', unsafe_allow_html=True)
-        p_c1, p_c2, p_c3, p_c4 = st.columns([1.4, 1.0, 1.0, 1.2], vertical_alignment="center")
+        p_c1, p_c2, p_c3, p_c4 = st.columns([1.5, 0.95, 0.95, 1.15], vertical_alignment="center")
 
         override = st.session_state.get("pump_override", "AUTO")
         if override == "ON":
-            p_badge_txt = '<span style="background:#fef3c7;color:#b45309;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">⚡ MANUAL HIDUP</span>'
+            p_badge_txt = '<span class="pump-ctrl-badge on"><span class="pump-ctrl-dot"></span>Manual Hidup</span>'
         elif override == "OFF":
-            p_badge_txt = '<span style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">🛑 MANUAL MATI</span>'
+            p_badge_txt = '<span class="pump-ctrl-badge off"><span class="pump-ctrl-dot"></span>Manual Mati</span>'
         else:
-            p_badge_txt = '<span style="background:#f0fdf4;color:#15803d;padding:3px 8px;border-radius:10px;font-weight:700;font-size:11.5px;">🤖 OTOMATIS (SENSOR)</span>'
+            p_badge_txt = '<span class="pump-ctrl-badge auto"><span class="pump-ctrl-dot"></span>Otomatis (Sensor)</span>'
 
-        p_c1.markdown(f'<div style="font-size:12.5px;font-weight:600;color:#334155;">Kontrol Pompa: {p_badge_txt}</div>', unsafe_allow_html=True)
-        if p_c2.button("▶️ Hidupkan", use_container_width=True, key="btn_live_pump_on", help="Nyalakan pompa air secara manual"):
+        p_c1.markdown(f'<div class="pump-ctrl-row"><span>Kontrol Pompa:</span> {p_badge_txt}</div>', unsafe_allow_html=True)
+        if p_c2.button("Hidupkan", use_container_width=True, key="btn_live_pump_on", help="Nyalakan pompa air secara manual"):
             st.session_state["pump_override"] = "ON"
             st.rerun()
-        if p_c3.button("⏹️ Matikan", use_container_width=True, key="btn_live_pump_off", help="Matikan pompa air secara manual"):
+        if p_c3.button("Matikan", use_container_width=True, key="btn_live_pump_off", help="Matikan pompa air secara manual"):
             st.session_state["pump_override"] = "OFF"
             st.rerun()
-        if p_c4.button("🤖 Otomatis", use_container_width=True, key="btn_live_pump_auto", help="Kembalikan kontrol pompa otomatis berbasis ambang batas kelembapan sensor (Kering <55% hidup, Basah ≥76% mati)"):
+        if p_c4.button("Otomatis", use_container_width=True, key="btn_live_pump_auto", help="Kembalikan kontrol pompa otomatis berbasis ambang batas kelembapan sensor (Kering <55% hidup, Basah ≥76% mati)"):
             st.session_state["pump_override"] = "AUTO"
             st.rerun()
 
@@ -650,24 +659,42 @@ def page_dashboard():
     ])
     ui.maturity_legend_bar(th)
 
-    ui.section_header(
-        "Distribusi Kondisi Kebun & Kurva Pertumbuhan",
-        "Ringkasan proporsi kelembapan tanah, distribusi fase pakcoy, dan pola kematangan dari siklus tanam yang ditampilkan.",
-        icon_name="bar-chart-3"
-    )
-    c1, c2 = st.columns(2)
-    show(charts.donut_condition(df), "d_donut", c1)
-    show(charts.bar_stage(df), "d_bar", c2)
-    show(charts.maturity_curve(df), "d_mat")
+    tab_ringkasan, tab_live, tab_data = st.tabs([
+        "Ringkasan & Grafik",
+        "Konsol Live Telemetry",
+        f"Data Sensor Lengkap ({len(df):,})",
+    ])
 
-    ui.section_header(
-        "Data Lengkap Pengukuran Sensor Kebun",
-        f"Menampilkan seluruh {len(df):,} catatan pengukuran sensor dari siklus tanam yang dipilih (Hari ke-{min_age} s.d. Hari ke-{max_age}).",
-        icon_name="database"
-    )
-    st.dataframe(style_table(format_display_df(df)), height=380, hide_index=True, width="stretch")
+    with tab_ringkasan:
+        ui.section_header(
+            "Distribusi Kondisi Kebun & Kurva Pertumbuhan",
+            "Ringkasan proporsi kelembapan tanah, distribusi fase pakcoy, dan pola kematangan dari siklus tanam yang ditampilkan.",
+            icon_name="bar-chart-3"
+        )
+        c1, c2 = st.columns(2, gap="medium")
+        show(charts.donut_condition(df), "d_donut", c1)
+        show(charts.bar_stage(df), "d_bar", c2)
+        show(charts.maturity_curve(df), "d_mat")
 
-    live_section()
+    with tab_live:
+        live_section()
+
+    with tab_data:
+        d_head, d_dl = st.columns([2.8, 1.1], vertical_alignment="center")
+        d_head.markdown(
+            f'<div class="section-title" style="margin:0;">Data Lengkap Pengukuran Sensor ({len(df):,} Catatan &middot; Hari {min_age}–{max_age})</div>',
+            unsafe_allow_html=True,
+        )
+        with d_dl:
+            st.download_button(
+                "Unduh Data Siklus (CSV)",
+                df.to_csv(index=False).encode("utf-8"),
+                file_name=f"data_sensor_{str(name).lower().replace(' ', '_')}.csv",
+                mime="text/csv",
+                key="btn_dash_dl_csv",
+                use_container_width=True,
+            )
+        st.dataframe(style_table(format_display_df(df)), height=440, hide_index=True, width="stretch")
 
 
 # ================================================================= eksplorasi
@@ -1227,7 +1254,7 @@ def photo_panel(m, img, key, sensor_row=None):
 
     g = utils.green_analysis(img, scale)
     is_plant, plant_reason, _ = utils.validate_plant_image(img, g)
-    c1, c2 = st.columns(2)
+    c1, c2 = st.columns(2, gap="medium")
     c1.image(img, caption="Foto Asli yang Diunggah")
     c2.image(g["overlay"], caption="Deteksi Area Daun Hijau (Segmentasi HSV)")
     cnn = None
@@ -1273,7 +1300,7 @@ def photo_panel(m, img, key, sensor_row=None):
                     dict(icon="sparkles", label="Tingkat Keyakinan AI", value=f"{p[k]:.0%}", color="#34d399", sub="Ketepatan pengenalan foto"),
                     dict(icon="layers", label="Skor Kesiapan Panen", value=f"{idx:.0f} / 100", color="#facc15", sub="Skor ≥ 85 siap dipanen"),
                 ], cols=3)
-                g1, g2 = st.columns(2)
+                g1, g2 = st.columns(2, gap="medium")
                 show(charts.prob_bar(p, names), f"{key}_prob", g1)
                 show(charts.gauge(idx, "Skor Kesiapan Panen dari Foto (0–100%)", (50, 90)), f"{key}_gauge", g2)
                 if p[k] < 0.6:
@@ -1398,7 +1425,7 @@ def page_cnn():
             "Unggah foto tanaman pakcoy Anda, lalu tekan tombol 'Analisis Foto Tanaman' untuk memeriksa kesiapan panen dan kesehatan daun.",
             "scan-line")
     m = load_models()
-    tab1, tab2 = st.tabs(["Periksa Foto Tanaman", "Tingkat Ketepatan & Info Model Foto"])
+    tab1, tab2 = st.tabs(["Periksa Foto Tanaman", "Evaluasi & Info Model CNN"])
     with tab1:
         if not warn_models(m, ["cnn"]):
             st.caption("Pengukuran fisik dan warna daun tetap dapat digunakan.")
@@ -1498,15 +1525,15 @@ def page_history_perkembangan():
     )
 
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Riwayat & Analisis Pertumbuhan",
-        f"📋 Tabel Lengkap ({len(df_hist):,} Data Pengecekan)",
-        "📁 Dataset Asli Excel (1.140 Data Mentah)",
-        "🌱 Panduan Siklus 1–30 & Standar Panen"
+        "Riwayat & Analisis",
+        f"Tabel Lengkap ({len(df_hist):,} Data)",
+        "Dataset Asli Mentah",
+        "Panduan Agronomi 30 Hari"
     ])
 
     with tab1:
         # Filter interaktif (dinamis sesuai isi aktual dataset agar tidak ada opsi kosong)
-        with st.container(border=True):
+        with st.container(border=True, key="card_hist_filter"):
             st.markdown('<div class="section-title" style="margin-top:0;">Filter Riwayat Perkembangan Tanaman</div>', unsafe_allow_html=True)
             f1, f2, f3, f4 = st.columns([1.2, 1.1, 1.2, 1.1])
 
@@ -1563,14 +1590,28 @@ def page_history_perkembangan():
             show(charts.history_daily_15times(df_view), "fig_hist_daily")
 
             st.markdown('<div class="section-title">Tren Sensor Lingkungan &amp; Sebaran Kondisi Tanah</div>', unsafe_allow_html=True)
-            col_tr1, col_tr2 = st.columns([1.6, 1.0])
+            col_tr1, col_tr2 = st.columns([1.6, 1.0], gap="medium")
             with col_tr1:
                 show(charts.history_sensor_trend(df_view), "fig_hist_trend")
             with col_tr2:
                 show(charts.donut_condition(df_view), "fig_hist_donut")
 
     with tab2:
-        st.markdown(f'<div class="section-title" style="margin-top:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy ({len(df_hist):,} Data)</div>', unsafe_allow_html=True)
+        t2_head, t2_dl = st.columns([2.6, 1.2], vertical_alignment="center")
+        t2_head.markdown(
+            f'<div class="section-title" style="margin:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy ({len(df_hist):,} Data)</div>',
+            unsafe_allow_html=True,
+        )
+        csv_1400 = df_hist.to_csv(index=False).encode("utf-8")
+        with t2_dl:
+            st.download_button(
+                label="Unduh Dataset 1.400 Data (CSV)",
+                data=csv_1400,
+                file_name="dataset_history_pakcoy_1400_data.csv",
+                mime="text/csv",
+                key="btn_dl_1400_csv",
+                use_container_width=True,
+            )
         st.caption(
             f"Data mencakup {len(avail_cycles)} siklus pengamatan (Siklus 1–3 penuh Hari 1–30 @ 450 baris, "
             f"serta awal Siklus 4 sebanyak 50 baris) dengan frekuensi {n_times_h} kali pengecekan per hari."
@@ -1595,15 +1636,6 @@ def page_history_perkembangan():
 
         st.dataframe(tbl_disp, hide_index=True, width="stretch", height=500)
 
-        csv_1400 = df_hist.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="📥 Unduh Dataset Lengkap 1.400 Data Pengecekan (CSV)",
-            data=csv_1400,
-            file_name="dataset_history_pakcoy_1400_data.csv",
-            mime="text/csv",
-            key="btn_dl_1400_csv"
-        )
-
     with tab3:
         ui.banner(
             "info",
@@ -1613,19 +1645,27 @@ def page_history_perkembangan():
         )
         df_raw = load_raw_dataset()
         if not df_raw.empty:
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Total Data Asli", f"{len(df_raw):,} Baris")
-            k2.metric("Rentang Hari", f"Hari {df_raw['Day'].min()} s.d. {df_raw['Day'].max()}")
-            k3.metric("Frekuensi Pengecekan Asli", "3× / Hari (08:00, 12:00, 16:00)")
-            st.dataframe(df_raw, hide_index=True, width="stretch", height=450)
-            csv_raw = df_raw.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Unduh Dataset Asli Mentah (CSV)",
-                data=csv_raw,
-                file_name="dataset_asli_mentah_pakcoy.csv",
-                mime="text/csv",
-                key="btn_dl_raw_csv"
+            ui.kpi_cards([
+                dict(icon="database", label="Total Data Asli Mentah", value=f"{len(df_raw):,} Baris", sub="File new Dataset_Pakcoy.xlsx", color="#15803d"),
+                dict(icon="calendar", label="Rentang Hari Mentah", value=f"Hari {int(df_raw['Day'].min())}–{int(df_raw['Day'].max())}", sub="Sebelum pemotongan siklus 30 hari", color="#0284c7"),
+                dict(icon="history", label="Frekuensi Pengukuran Asli", value="3× / Hari", sub="Pukul 08:00, 12:00, dan 16:00", color="#0d9488"),
+            ], cols=3)
+            t3_head, t3_dl = st.columns([2.6, 1.2], vertical_alignment="center")
+            t3_head.markdown(
+                '<div class="section-title" style="margin:0;">Pratinjau Data Asli Mentah (Excel)</div>',
+                unsafe_allow_html=True,
             )
+            csv_raw = df_raw.to_csv(index=False).encode("utf-8")
+            with t3_dl:
+                st.download_button(
+                    label="Unduh Dataset Asli Mentah (CSV)",
+                    data=csv_raw,
+                    file_name="dataset_asli_mentah_pakcoy.csv",
+                    mime="text/csv",
+                    key="btn_dl_raw_csv",
+                    use_container_width=True,
+                )
+            st.dataframe(df_raw, hide_index=True, width="stretch", height=450)
         else:
             ui.banner("warn", "File dataset asli mentah belum tersedia.")
 
@@ -1643,7 +1683,7 @@ def page_history_perkembangan():
 | **4. Siap Panen** | `Siap Panen` | Hari 26 – 30 | 35 – 40 HST | 85% – 100% | ≥ 89,0% | 55% – 65% | 22°C – 28°C |
             """
         )
-        st.info("💡 **Tips Panen dari Pakar Agronomi:** Panen pakcoy terbaik dilakukan pada pagi hari (pukul 06:00 – 08:00) saat kelembapan udara masih tinggi dan terik matahari belum membakar daun. Hal ini menjaga kadar air daun tetap tinggi dan menjaga kesegaran lebih lama.")
+        ui.banner("info", "Tips Panen Agronomi: Panen pakcoy terbaik dilakukan pada pagi hari (pukul 06:00–08:00) saat kelembapan udara masih tinggi dan terik matahari belum membakar daun, sehingga kadar air daun tetap tinggi dan kesegaran bertahan lebih lama.")
 
 
 PAGES = {

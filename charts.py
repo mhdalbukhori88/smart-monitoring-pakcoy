@@ -72,18 +72,23 @@ def donut_condition(df):
     fig = go.Figure(go.Pie(
         labels=[COND_LABELS.get(k, k) for k in counts.index],
         values=counts.values.tolist(), hole=0.62,
-        marker=dict(colors=[COND_COLORS[k] for k in counts.index]),
+        marker=dict(colors=[COND_COLORS[k] for k in counts.index], line=dict(color="#ffffff", width=2)),
         textinfo="percent",
         textposition="inside",
         insidetextorientation="horizontal",
         sort=False,
-        direction="clockwise"))
+        direction="clockwise",
+        hovertemplate="<b>%{label}</b><br>Jumlah: %{value:,} data (%{percent})<extra></extra>",
+    ))
+    fig = _layout(fig, "Proporsi Kondisi Kelembapan Tanah", height=360, legend=True)
     fig.update_layout(
-        legend=dict(orientation="h", y=-0.20, x=0.5, xanchor="center",
-                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#5c6f64")),
-        margin=dict(l=14, r=14, t=55, b=35)
+        title=dict(text="Proporsi Kondisi Kelembapan Tanah", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.12, x=0.5, xanchor="center",
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11.5, color="#2c3e35")),
+        margin=dict(l=14, r=14, t=54, b=42),
     )
-    return _layout(fig, "Proporsi Kondisi Kelembapan Tanah", height=360, legend=True)
+    return fig
 
 
 def bar_stage(df):
@@ -100,11 +105,24 @@ def bar_stage(df):
         x_vals = [str(k) for k in counts.index]
         palette = ["#0d9488", "#15803d", "#d97706", "#0284c7", "#8b5cf6"]
         colors = [palette[i % len(palette)] for i in range(len(counts))]
+    vals = [int(v) for v in counts.values]
     fig = go.Figure(go.Bar(
-        x=x_vals, y=counts.values.tolist(),
-        marker_color=colors,
-        text=[int(v) for v in counts.values], textposition="outside"))
-    return _layout(fig, "Jumlah Data per Fase Pertumbuhan", height=360, legend=False, ytitle="Jumlah Pengukuran")
+        x=x_vals, y=vals,
+        marker=dict(color=colors, line=dict(width=0)),
+        width=0.52,
+        text=[f"{v:,}" for v in vals], textposition="outside",
+        textfont=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11.5, color="#2c3e35"),
+        hovertemplate="<b>%{x}</b><br>Jumlah: <b>%{y:,} pengukuran</b><extra></extra>",
+    ))
+    max_v = max(vals + [1])
+    fig = _layout(fig, "Jumlah Data per Fase Pertumbuhan", height=360, legend=False, ytitle="Jumlah Pengukuran")
+    fig.update_yaxes(range=[0, max_v * 1.18])
+    fig.update_layout(
+        title=dict(text="Jumlah Data per Fase Pertumbuhan", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=16, t=54, b=36),
+    )
+    return fig
 
 
 def maturity_curve(df):
@@ -116,18 +134,33 @@ def maturity_curve(df):
         for k in CLASS_NAMES:
             d = g[g["Ground Truth Criteria"] == k]
             if len(d):
-                fig.add_trace(go.Scatter(x=d[col_age], y=d[MATURITY_COL], mode="lines+markers", name=CLASS_LABELS[k],
-                                         line=dict(color=STAGE_COLORS[k], width=3), marker=dict(size=6)))
+                fig.add_trace(go.Scatter(
+                    x=d[col_age], y=d[MATURITY_COL], mode="lines+markers", name=CLASS_LABELS[k],
+                    line=dict(color=STAGE_COLORS[k], width=3, shape="spline", smoothing=0.45),
+                    marker=dict(size=6, line=dict(width=1.2, color="#ffffff")),
+                    hovertemplate="Hari ke-%{x}<br>" + CLASS_LABELS[k] + ": <b>%{y:.1f}%</b><extra></extra>",
+                ))
     if len(fig.data) == 0 and len(df) > 0 and MATURITY_COL in df.columns:
         g_all = df.groupby(col_age)[MATURITY_COL].mean().reset_index()
         fig.add_trace(go.Scatter(
             x=g_all[col_age], y=g_all[MATURITY_COL], mode="lines+markers",
             name="Rata-rata Kematangan (%)",
-            line=dict(color="#15803d", width=3),
-            marker=dict(size=6)
+            line=dict(color="#15803d", width=3, shape="spline", smoothing=0.45),
+            marker=dict(size=6, line=dict(width=1.2, color="#ffffff")),
+            hovertemplate="Hari ke-%{x}<br>Kematangan: <b>%{y:.1f}%</b><extra></extra>",
         ))
-    return _layout(fig, "Rata-rata Kematangan Tanaman dari Hari ke-1 hingga Panen (Hari ke-30)", height=380,
-                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    fig = _layout(fig, "Rata-rata Kematangan Tanaman dari Hari ke-1 hingga Panen (Hari ke-30)", height=365,
+                  xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    fig.update_yaxes(range=[0, 106], ticksuffix="%")
+    fig.update_layout(
+        title=dict(text="Rata-rata Kematangan Tanaman dari Hari ke-1 hingga Panen (Hari ke-30)", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=18, t=82, b=48),
+        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0.0,
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11.5, color="#2c3e35")),
+        hovermode="x unified",
+    )
+    return fig
 
 
 def hist_moisture(df, dry, wet):
@@ -252,6 +285,13 @@ def live_line(hist, col, title, color, ytitle, dry=None, wet=None, trend=None, h
                       annotation_font_color="#0284c7")
     tvals, ttext = _day_ticks_from_indices(x, max_ticks=7)
     fig = _layout(fig, title, height=height, xtitle="Umur Tanaman (Hari ke-)", ytitle=ytitle)
+    fig.update_layout(
+        title=dict(text=title, x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=16, t=78, b=46),
+        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0.0,
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#2c3e35")),
+    )
     if tvals:
         fig.update_xaxes(tickmode="array", tickvals=tvals, ticktext=ttext)
     return fig
@@ -263,26 +303,31 @@ def growth_curve(grow, thresholds):
     y = grow[MATURITY_COL].tolist()
     hover_txt = [_idx_to_day_label(i) for i in x]
     fig = go.Figure()
-    fig.add_hrect(y0=0, y1=thresholds[0], fillcolor="#0d9488", opacity=0.06, line_width=0)
-    fig.add_hrect(y0=thresholds[0], y1=thresholds[1], fillcolor="#d97706", opacity=0.06, line_width=0)
-    fig.add_hrect(y0=thresholds[1], y1=100, fillcolor="#15803d", opacity=0.09, line_width=0)
+    fig.add_hrect(y0=0, y1=thresholds[0], fillcolor="rgba(13, 148, 136, 0.045)", line_width=0)
+    fig.add_hrect(y0=thresholds[0], y1=thresholds[1], fillcolor="rgba(217, 119, 6, 0.055)", line_width=0)
+    fig.add_hrect(y0=thresholds[1], y1=100, fillcolor="rgba(21, 128, 61, 0.075)", line_width=0)
     fig.add_trace(go.Scatter(
         x=x, y=y, mode="lines", name="Tingkat Kematangan",
         text=hover_txt,
         hovertemplate="%{text}<br>Kematangan: <b>%{y:.1f}%</b><extra></extra>",
-        line=dict(color="#15803d", width=3)
+        line=dict(color="#15803d", width=3, shape="spline", smoothing=0.45)
     ))
     if x:
         fig.add_trace(go.Scatter(
             x=[x[-1]], y=[y[-1]], mode="markers", name="Sekarang",
             text=[hover_txt[-1]],
             hovertemplate="%{text}<br>Sekarang: <b>%{y:.1f}%</b><extra></extra>",
-            marker=dict(color="#15803d", size=9)
+            marker=dict(color="#15803d", size=9, line=dict(width=1.5, color="#ffffff"))
         ))
-    fig.update_yaxes(range=[0, 100])
+    fig.update_yaxes(range=[0, 104], ticksuffix="%")
     tvals, ttext = _day_ticks_from_indices(x, max_ticks=8)
     fig = _layout(fig, "Kurva Pertumbuhan & Kematangan Sejak Awal Tanam", height=300, legend=False,
                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    fig.update_layout(
+        title=dict(text="Kurva Pertumbuhan & Kematangan Sejak Awal Tanam", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=16, t=54, b=46),
+    )
     if tvals:
         fig.update_xaxes(tickmode="array", tickvals=tvals, ticktext=ttext)
     return fig
@@ -291,13 +336,13 @@ def growth_curve(grow, thresholds):
 def gauge(value, title, thresholds=(66.5, 89.0)):
     fig = go.Figure(go.Indicator(
         mode="gauge+number", value=float(value), number=dict(suffix="%", font=dict(family="Plus Jakarta Sans, Inter, sans-serif", color="#111c16")),
-        title=dict(text=title, font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14, color="#111c16")),
+        title=dict(text=title, font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14, color="#111c16", weight=600)),
         gauge=dict(axis=dict(range=[0, 100], tickfont=dict(family="Plus Jakarta Sans, Inter, sans-serif", color="#5c6f64")),
                    bar=dict(color="#15803d", thickness=0.26),
-                   steps=[dict(range=[0, thresholds[0]], color="rgba(13, 148, 136, 0.14)"),
-                          dict(range=[thresholds[0], thresholds[1]], color="rgba(217, 119, 6, 0.18)"),
-                          dict(range=[thresholds[1], 100], color="rgba(21, 128, 61, 0.24)")])))
-    fig.update_layout(template="plotly_white", height=280, margin=dict(l=20, r=20, t=60, b=10),
+                   steps=[dict(range=[0, thresholds[0]], color="rgba(13, 148, 136, 0.12)"),
+                          dict(range=[thresholds[0], thresholds[1]], color="rgba(217, 119, 6, 0.14)"),
+                          dict(range=[thresholds[1], 100], color="rgba(21, 128, 61, 0.20)")])))
+    fig.update_layout(template="plotly_white", height=290, margin=dict(l=20, r=20, t=58, b=12),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=13, color="#111c16"))
     return fig
@@ -309,9 +354,17 @@ def prob_bar(probs, names, title="Tingkat Keyakinan AI untuk Tiap Fase"):
         x=[float(probs[i]) * 100 for i in order], y=[CLASS_LABELS.get(names[i], names[i]) for i in order],
         orientation="h", marker_color=[STAGE_COLORS.get(names[i], "#15803d") for i in order],
         text=[f"{float(probs[i]):.0%}" for i in order], textposition="auto",
-        textfont=dict(family="Plus Jakarta Sans, Inter, sans-serif", color="#ffffff", size=12)))
-    fig.update_xaxes(range=[0, 100])
-    return _layout(fig, title, height=230, legend=False, xtitle="Tingkat Keyakinan AI (%)")
+        textfont=dict(family="Plus Jakarta Sans, Inter, sans-serif", color="#ffffff", size=12),
+        hovertemplate="<b>%{y}</b><br>Keyakinan AI: <b>%{x:.1f}%</b><extra></extra>",
+    ))
+    fig.update_xaxes(range=[0, 105], ticksuffix="%")
+    fig = _layout(fig, title, height=290, legend=False, xtitle="Tingkat Keyakinan AI (%)")
+    fig.update_layout(
+        title=dict(text=title, x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=14, r=18, t=54, b=42),
+    )
+    return fig
 
 
 def forecast_line(
@@ -683,31 +736,43 @@ def confusion_fig(cm, names, title):
 def history_maturity_curve(df):
     """Kurva Kematangan Tanaman Pakcoy dari Hari ke-1 hingga Masa Panen (Hari ke-30)."""
     fig = go.Figure()
-    fig.add_hrect(y0=0, y1=33, fillcolor="#0d9488", opacity=0.07, line_width=0,
-                  annotation_text="Fase Awal (0–33%)", annotation_position="top left", annotation_font_color="#0d9488")
-    fig.add_hrect(y0=33, y1=66, fillcolor="#0284c7", opacity=0.06, line_width=0,
-                  annotation_text="Fase Vegetatif (34–66%)", annotation_position="top left", annotation_font_color="#0284c7")
-    fig.add_hrect(y0=66, y1=84, fillcolor="#d97706", opacity=0.07, line_width=0,
-                  annotation_text="Mendekati Panen (67–84%)", annotation_position="top left", annotation_font_color="#d97706")
-    fig.add_hrect(y0=84, y1=100, fillcolor="#15803d", opacity=0.10, line_width=0,
-                  annotation_text="Siap Panen (85–100%)", annotation_position="top left", annotation_font_color="#15803d")
-    
+    zones = [
+        (0, 33, "rgba(13, 148, 136, 0.045)", 16, "Fase Awal (0–33%)", "#0f766e"),
+        (33, 66, "rgba(2, 132, 199, 0.045)", 50, "Fase Vegetatif (34–66%)", "#0369a1"),
+        (66, 84, "rgba(217, 119, 6, 0.055)", 75, "Mendekati Panen (67–84%)", "#b45309"),
+        (84, 100, "rgba(21, 128, 61, 0.075)", 93, "Siap Panen (85–100%)", "#15803d"),
+    ]
+    for y0, y1, fcol, zy, ztxt, zcol in zones:
+        fig.add_hrect(y0=y0, y1=y1, fillcolor=fcol, line_width=0, layer="below")
+        fig.add_annotation(
+            x=0.99, xref="paper", xanchor="right", y=zy, yref="y", yanchor="middle",
+            text=ztxt, showarrow=False,
+            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10.5, color=zcol),
+            bgcolor="rgba(255,255,255,0.68)", borderpad=2,
+        )
+
     col_day = "Day" if "Day" in df.columns else ("Hari" if "Hari" in df.columns else df.columns[0])
     col_mat = "Ground Truth Maturity Level (%)" if "Ground Truth Maturity Level (%)" in df.columns else MATURITY_COL
-    
+
     g = df.groupby(col_day)[col_mat].mean().reset_index()
     fig.add_trace(go.Scatter(
         x=g[col_day], y=g[col_mat], mode="lines+markers",
         name="Rata-rata Kematangan (%)",
-        line=dict(color="#15803d", width=3.2),
-        marker=dict(size=7, color="#15803d"),
-        hovertemplate="Hari ke-%{x}<br>Kematangan: <b>%{y:.1f}%</b><extra></extra>"
+        line=dict(color="#15803d", width=3.2, shape="spline", smoothing=0.45),
+        marker=dict(size=6.5, color="#15803d", line=dict(width=1.4, color="#ffffff")),
+        hovertemplate="<b>Hari ke-%{x}</b><br>Kematangan: <b>%{y:.1f}%</b><extra></extra>"
     ))
-    fig.update_xaxes(range=[0, 31.5], dtick=2)
-    fig.update_yaxes(range=[0, 105])
-    fig.update_layout(margin=dict(l=16, r=28, t=50, b=18))
-    return _layout(fig, "Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", height=370, legend=False,
-                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    fig.update_xaxes(range=[0.5, 31], dtick=2)
+    fig.update_yaxes(range=[0, 106], ticksuffix="%")
+    fig = _layout(fig, "Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", height=360, legend=False,
+                  xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    fig.update_layout(
+        title=dict(text="Kurva Pertumbuhan Menuju Panen Raya (Hari ke-1 s.d. 30)", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=18, t=54, b=46),
+        hovermode="x unified",
+    )
+    return fig
 
 
 def history_daily_15times(df):
@@ -717,65 +782,77 @@ def history_daily_15times(df):
         g = df.groupby("Time")[["Soil Moisture (%)", "Temperature (°C)"]].mean().reindex(times_15).dropna(how="all")
     else:
         g = pd.DataFrame(columns=["Soil Moisture (%)", "Temperature (°C)"])
-    
+
     x_lbls = [str(t) for t in g.index]
     moist_vals = g["Soil Moisture (%)"].round(1).tolist() if len(g) else []
     temp_vals = g["Temperature (°C)"].round(1).tolist() if len(g) else []
-    
+
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=x_lbls, y=moist_vals, name="Kelembapan Tanah (%)",
-        marker_color="#15803d",
-        text=[f"{v:.1f}%" for v in moist_vals], textposition="outside",
-        hovertemplate="Pukul <b>%{x}</b><br>Kelembapan: <b>%{y:.1f}%</b><extra></extra>"
+        marker=dict(color="rgba(21, 128, 61, 0.78)", line=dict(width=0)),
+        width=0.56,
+        hovertemplate="Kelembapan Tanah: <b>%{y:.1f}%</b><extra></extra>",
     ))
-    fig.add_trace(go.Bar(
+    fig.add_trace(go.Scatter(
         x=x_lbls, y=temp_vals, name="Suhu Udara (°C)",
-        marker_color="#d97706",
-        text=[f"{v:.1f}°C" for v in temp_vals], textposition="outside",
-        hovertemplate="Pukul <b>%{x}</b><br>Suhu Udara: <b>%{y:.1f}°C</b><extra></extra>"
+        mode="lines+markers",
+        line=dict(color="#d97706", width=3, shape="spline", smoothing=0.5),
+        marker=dict(size=7, color="#d97706", line=dict(width=1.5, color="#ffffff")),
+        hovertemplate="Suhu Udara: <b>%{y:.1f}°C</b><extra></extra>",
     ))
     max_y = max(moist_vals + temp_vals + [75.0])
+    fig = _layout(fig, "Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", height=370, legend=True,
+                  xtitle="Jam Pengecekan Sensor (15× Sehari)", ytitle="Rata-rata Nilai Sensor")
+    fig.update_yaxes(range=[0, max_y * 1.18])
     fig.update_layout(
-        barmode="group",
-        height=390,
-        margin=dict(l=16, r=16, t=55, b=65),
-        legend=dict(
-            orientation="h",
-            y=-0.26,
-            x=0.5,
-            xanchor="center",
-            font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11, color="#5c6f64")
-        )
+        title=dict(text="Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=18, t=82, b=50),
+        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0.0,
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11.5, color="#2c3e35")),
+        hovermode="x unified",
     )
-    fig.update_yaxes(range=[0, max_y * 1.2])
-    return _layout(fig, "Profil Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)", height=390, legend=True,
-                   xtitle="Jam Pengecekan Sensor (15× Sehari)", ytitle="Nilai Rata-rata Pengukuran")
+    return fig
 
 
 def history_sensor_trend(df):
     """Tren Kelembapan Tanah dan Suhu Udara Berdasarkan Hari Pertumbuhan (Hari 1–30)."""
     col_day = "Day" if "Day" in df.columns else ("Hari" if "Hari" in df.columns else df.columns[0])
     g = df.groupby(col_day)[["Soil Moisture (%)", "Temperature (°C)"]].mean().reset_index()
-    
+
     fig = go.Figure()
-    fig.add_hrect(y0=55, y1=76, fillcolor="#15803d", opacity=0.08, line_width=0,
-                  annotation_text="Rentang Kelembapan Optimal (55–76%)", annotation_position="top left", annotation_font_color="#15803d")
+    fig.add_hrect(y0=55, y1=76, fillcolor="rgba(21, 128, 61, 0.07)", line_width=0, layer="below")
+    fig.add_annotation(
+        x=0.99, xref="paper", xanchor="right", y=76, yref="y", yanchor="bottom", yshift=2,
+        text="Zona Kelembapan Ideal (55–76%)", showarrow=False,
+        font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=10, color="#15803d"),
+        bgcolor="rgba(240,253,244,0.88)", borderpad=2,
+    )
     fig.add_trace(go.Scatter(
         x=g[col_day], y=g["Soil Moisture (%)"], mode="lines+markers",
-        name="Kelembapan Tanah (%)", line=dict(color="#15803d", width=2.8), marker=dict(size=6),
-        hovertemplate="Hari ke-%{x}<br>Kelembapan: <b>%{y:.1f}%</b><extra></extra>"
+        name="Kelembapan Tanah (%)",
+        line=dict(color="#15803d", width=2.8, shape="spline", smoothing=0.45),
+        marker=dict(size=5.5, color="#15803d", line=dict(width=1.2, color="#ffffff")),
+        hovertemplate="Kelembapan: <b>%{y:.1f}%</b><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=g[col_day], y=g["Temperature (°C)"], mode="lines+markers",
-        name="Suhu Udara (°C)", line=dict(color="#d97706", width=2.8), marker=dict(size=6),
-        hovertemplate="Hari ke-%{x}<br>Suhu: <b>%{y:.1f}°C</b><extra></extra>"
+        name="Suhu Udara (°C)",
+        line=dict(color="#d97706", width=2.8, shape="spline", smoothing=0.45),
+        marker=dict(size=5.5, color="#d97706", line=dict(width=1.2, color="#ffffff")),
+        hovertemplate="Suhu: <b>%{y:.1f}°C</b><extra></extra>"
     ))
-    fig.update_xaxes(range=[0, 31.5], dtick=2)
+    fig.update_xaxes(range=[0.5, 31], dtick=2)
+    fig = _layout(fig, "Tren Sensor Sepanjang Siklus Tanam (Hari 1–30)", height=360, legend=True,
+                  xtitle="Umur Tanaman (Hari ke-)", ytitle="Nilai Sensor")
     fig.update_layout(
-        margin=dict(l=16, r=28, t=52, b=30),
-        legend=dict(orientation="h", y=-0.24, x=0.5, xanchor="center")
+        title=dict(text="Tren Sensor Sepanjang Siklus Tanam (Hari 1–30)", x=0.0, y=0.98, xanchor="left", yanchor="top",
+                   font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=14.5, color="#111c16", weight=600)),
+        margin=dict(l=16, r=18, t=82, b=48),
+        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="left", x=0.0,
+                    font=dict(family="Plus Jakarta Sans, Inter, sans-serif", size=11.5, color="#2c3e35")),
+        hovermode="x unified",
     )
-    return _layout(fig, "Tren Sensor Sepanjang Siklus Tanam (Hari 1–30)", legend=True,
-                   xtitle="Umur Tanaman (Hari ke-)", ytitle="Nilai Sensor")
+    return fig
 

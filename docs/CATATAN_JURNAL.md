@@ -55,7 +55,7 @@ flowchart LR
 | `charts.py` | Pembangkit grafik interaktif Plotly (donut kondisi tanah, bar distribusi fase, kurva pertumbuhan/kematangan, grafik live telemetry, tren & prakiraan 4 hari dengan zona ideal, grafik kematangan bertingkat, confusion matrix, dan profil 15 jam harian). |
 | `ui.py` | Sistem desain tema hijau botani (CSS terisolasi & responsif), kartu KPI, konsol telemetri live, kartu prakiraan 4 hari, kartu rekomendasi antisipasi, estimasi morfologi daun heuristik, dan narasi perawatan tanaman. |
 | `auth.py` | Autentikasi pengguna berbasis SQLite lokal (`PBKDF2-HMAC-SHA256`, 100.000 iterasi + salt 16 byte acak, perbandingan constant-time `hmac.compare_digest`), dukungan kredensial admin via `st.secrets`/env, rate limiting login (`5` percobaan gagal / jeda `60` detik), dan pembersihan sesi saat logout. |
-| `ai_assistant.py` | Antarmuka chat konsultasi agronomi & sistem berbasis Google Gemini (`google-genai`), fallback model otomatis (`gemini-2.5-flash` → `gemini-2.5-flash-lite`), redaksi API key dari log, dan basis pengetahuan sistem. |
+| `ai_assistant.py` | Antarmuka chat konsultasi agronomi & sistem berbasis Google Gemini (`google-genai`), auto-discovery model aktif (`client.models.list()`) dengan default `gemini-3.8-flash` → `gemini-3.5-flash-lite`, redaksi API key dari log, dan basis pengetahuan sistem. |
 
 ---
 

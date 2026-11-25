@@ -707,7 +707,12 @@ def render_sidebar_user_profile():
     )
 
     if role == "Administrator" and is_using_default_admin_password():
-        st.sidebar.caption("Keamanan: Atur ADMIN_PASSWORD di Secrets untuk mengganti sandi demo.")
+        st.sidebar.markdown(
+            '<div class="sb-sec-note">'
+            '<strong>Mode Demo:</strong> Atur <code>ADMIN_PASSWORD</code> di Secrets untuk sandi kustom.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     if st.sidebar.button("Keluar Akun", key="btn_logout", use_container_width=True):
         logout()
