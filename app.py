@@ -1,25 +1,20 @@
 """Smart Farming Pakcoy: dashboard realtime, eksplorasi data, monitoring sensor, LSTM, prediksi 4 hari,
 CNN (scan foto), dan scan gabungan."""
 import hashlib
-import importlib
+import io
 import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 import utils
 import ui
 import charts
 import ai_assistant
 import auth
-
-importlib.reload(ui)
-importlib.reload(charts)
-importlib.reload(auth)
-importlib.reload(ai_assistant)
 
 _LOGO_FILE = Path(__file__).parent / "assets" / "logo_pakcoy.png"
 st.set_page_config(
@@ -287,8 +282,11 @@ def predict_stage(m, window_df):
 def predict_forecast(m, window_df):
     cfg = m["cfg_lstm"]
     x = utils.make_features(window_df, cfg)[None]
+    last_time = str(window_df["Time"].iloc[-1])
+    if last_time not in utils.JAM_MAP:
+        raise ValueError(f"Waktu pengukuran terakhir '{last_time}' tidak didukung model LSTM (harus 08:00, 12:00, atau 16:00).")
     pred = m["fc"](x, training=False).numpy()[0]
-    return utils.forecast_table(pred, cfg, utils.JAM_MAP[str(window_df["Time"].iloc[-1])])
+    return utils.forecast_table(pred, cfg, utils.JAM_MAP[last_time])
 
 
 def predict_image(m, img):
@@ -311,6 +309,20 @@ def cnn_names(m):
     return utils.CNN_CLASS_NAMES
 
 
+@st.cache_data(show_spinner="Memvalidasi file Excel...")
+def _parse_uploaded_excel(file_bytes: bytes, file_name: str):
+    """Membaca dan memvalidasi file Excel unggahan dengan caching berbasis konten file."""
+    if not file_bytes:
+        raise ValueError("File Excel kosong (0 byte).")
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise ValueError("Ukuran file Excel melebihi batas maksimal 10 MB.")
+    try:
+        raw_df = pd.read_excel(io.BytesIO(file_bytes))
+    except Exception as exc:
+        raise ValueError(f"File '{file_name}' tidak dapat dibaca sebagai workbook Excel valid: {exc}") from exc
+    return utils.normalize_dataset(raw_df)
+
+
 # ================================================================= sidebar
 def sidebar():
     sb = st.sidebar
@@ -329,23 +341,50 @@ def sidebar():
     choice = sb.radio("Menu", list(PAGES.keys()), label_visibility="collapsed", format_func=ui.strip_emoji)
 
     m = load_models()
+    if st.session_state.pop("_models_reloaded", False):
+        ready_cnt = sum(1 for k in ("clf", "fc", "cnn") if m.get(k) is not None)
+        if m.get("error"):
+            st.toast(f"Gagal memuat ulang model: {m['error']}")
+        else:
+            st.toast(f"Model AI berhasil dimuat ulang ({ready_cnt}/3 model siap).")
 
     sb.markdown('<div class="micro-cap">DATA &amp; SISTEM</div>', unsafe_allow_html=True)
     f = sb.file_uploader("Impor Data Excel (.xlsx)", type=["xlsx"], key="upl")
     if f is not None:
         try:
-            st.session_state["upload_df"] = utils.normalize_dataset(pd.read_excel(f))
+            up_df = _parse_uploaded_excel(f.getvalue(), f.name)
+            st.session_state["upload_df"] = up_df
             st.session_state["upload_name"] = f.name
-            sb.success(f"Dataset dimuat: {len(st.session_state['upload_df']):,} baris")
+            sb.success(f"Dataset dimuat: {len(up_df):,} baris")
+            bad_times = sorted(set(up_df["Time"].astype(str)) - set(utils.JAM_LIST))
+            if bad_times:
+                sb.caption(
+                    "Catatan: Jam di luar 08:00/12:00/16:00 terdeteksi; "
+                    "data tetap tampil di Dashboard, namun Prakiraan LSTM butuh jam 08:00, 12:00, 16:00."
+                )
         except Exception as e:
             st.session_state.pop("upload_df", None)
+            st.session_state.pop("upload_name", None)
             sb.error(f"Dataset tidak sesuai: {e}")
     else:
         st.session_state.pop("upload_df", None)
+        st.session_state.pop("upload_name", None)
 
     if sb.button("Muat Ulang Model AI", key="reload_models"):
         _load_models_cached.clear()
+        st.session_state["_models_reloaded"] = True
         st.rerun()
+
+    ready_items = [
+        ("LSTM Klasifikasi", m.get("clf") is not None),
+        ("LSTM Prakiraan", m.get("fc") is not None),
+        ("CNN Citra", m.get("cnn") is not None),
+    ]
+    if any(not ok for _, ok in ready_items):
+        missing_lbl = ", ".join(name for name, ok in ready_items if not ok)
+        sb.warning(f"Model belum aktif: {missing_lbl}")
+    else:
+        sb.caption("Status AI: 3/3 model aktif (LSTM + CNN)")
 
     sb.markdown('<div class="micro-cap">AKUN PENGGUNA</div>', unsafe_allow_html=True)
     auth.render_sidebar_user_profile()

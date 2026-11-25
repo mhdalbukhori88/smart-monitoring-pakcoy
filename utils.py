@@ -30,8 +30,12 @@ MATURITY_THRESHOLDS = [66.5, 89.0]  # Ambang batas kematangan model LSTM
 REQUIRED_COLS = ["Day", "Time", "Soil Moisture (%)", "Temperature (°C)",
                  "Soil Condition", MATURITY_COL, "Ground Truth Criteria"]
 
-DRY_LIMIT = 55.0   # batas kering (%), sama dengan aturan label Dry di Data_Training
-WET_LIMIT = 76.0   # batas basah (%)
+DRY_LIMIT = 55.0      # batas kering (%), sama dengan aturan label Dry di Data_Training
+WET_LIMIT = 76.0      # batas basah (%)
+TEMP_OPT_MIN = 22.0   # batas bawah suhu optimal pertumbuhan pakcoy (°C)
+TEMP_OPT_MAX = 28.0   # batas atas suhu optimal pertumbuhan pakcoy (°C)
+TEMP_TOL_MIN = 18.0   # batas peringatan udara terlalu sejuk (°C)
+TEMP_TOL_MAX = 30.0   # batas peringatan udara terlalu terik (°C)
 
 # Informasi umum agronomi pakcoy (bukan hasil model).
 STAGE_INFO = {
@@ -74,23 +78,100 @@ def stage_key(text):
     return None
 
 
+def _normalize_time_str(val):
+    """Normalisasi nilai waktu (string, datetime.time, atau Timestamp) menjadi format 'HH:MM'."""
+    if pd.isna(val):
+        return None
+    if hasattr(val, "strftime"):
+        return val.strftime("%H:%M")
+    s = str(val).strip()
+    if not s:
+        return None
+    # Ambil pola HH:MM pertama (mendukung '8:00', '08:00:00', '08:00 (Pagi)')
+    import re
+    m = re.search(r"(\d{1,2})\s*:\s*(\d{2})", s)
+    if m:
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if 0 <= hh <= 23 and 0 <= mm <= 59:
+            return f"{hh:02d}:{mm:02d}"
+    return s[:5]
+
+
+def _normalize_soil_condition(val, moisture):
+    """Normalisasi label kondisi tanah ke {'Wet', 'Optimal', 'Dry'} (mendukung Bahasa Indonesia/Inggris)."""
+    t = str(val).strip().lower() if not pd.isna(val) else ""
+    if "wet" in t or "basah" in t:
+        return "Wet"
+    if "dry" in t or "kering" in t:
+        return "Dry"
+    if "optimal" in t or "ideal" in t:
+        return "Optimal"
+    # Fallback deterministik dari kelembapan bila label tidak standar
+    m_val = float(moisture)
+    if m_val < DRY_LIMIT:
+        return "Dry"
+    if m_val >= WET_LIMIT:
+        return "Wet"
+    return "Optimal"
+
+
 def normalize_dataset(df):
-    """Rapikan dataset Excel unggahan agar sesuai format aplikasi.
+    """Rapikan dan validasi dataset Excel unggahan agar sesuai format aplikasi.
     Menerima format asli (4 tahap bahasa Inggris) maupun format baru (3 nama folder)."""
+    if df is None or len(df) == 0:
+        raise ValueError("File dataset kosong (tidak ada baris data yang dapat dibaca).")
     missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:
         raise ValueError("Kolom wajib tidak ditemukan: " + ", ".join(missing))
+
     out = df.copy()
-    out["Time"] = out["Time"].astype(str).str.slice(0, 5)
+
+    # Validasi & koersi kolom numerik wajib
+    num_checks = [
+        ("Day", 1.0, 1000.0),
+        ("Soil Moisture (%)", 0.0, 100.0),
+        ("Temperature (°C)", 0.0, 60.0),
+        (MATURITY_COL, 0.0, 100.0),
+    ]
+    for col, lo, hi in num_checks:
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+        bad_nan = int(out[col].isna().sum())
+        if bad_nan > 0:
+            raise ValueError(f"Kolom '{col}' memiliki {bad_nan} nilai kosong atau bukan angka.")
+        if (out[col] < lo).any() or (out[col] > hi).any():
+            raise ValueError(
+                f"Nilai kolom '{col}' di luar rentang wajar ({lo:.0f}–{hi:.0f}). "
+                f"Ditemukan rentang {out[col].min():.1f}–{out[col].max():.1f}."
+            )
+    out["Day"] = out["Day"].round().astype(int)
+
+    # Normalisasi & validasi kolom Time
+    out["Time"] = out["Time"].map(_normalize_time_str)
+    if out["Time"].isna().any():
+        raise ValueError("Kolom 'Time' memiliki nilai kosong atau format jam tidak dikenali (gunakan format HH:MM).")
+
+    # Normalisasi & validasi tahap pertumbuhan
     out["Ground Truth Criteria"] = out["Ground Truth Criteria"].map(stage_key)
     if out["Ground Truth Criteria"].isna().any():
         raise ValueError("Ada nilai 'Ground Truth Criteria' yang tidak dikenali "
-                         "(harus Initial/Vegetative/Pre-Harvest/Harvest Ready atau nama folder kelas).")
+                         "(harus Initial/Vegetative/Pre-Harvest/Harvest Ready atau nama kelas pakcoy).")
+
+    # Normalisasi kondisi tanah (case-insensitive & dukungan label Bahasa Indonesia)
+    out["Soil Condition"] = [
+        _normalize_soil_condition(c, m)
+        for c, m in zip(out["Soil Condition"], out["Soil Moisture (%)"])
+    ]
+
     if "Cycle_ID" not in out.columns:
         out["Cycle_ID"] = 0
+    else:
+        out["Cycle_ID"] = pd.to_numeric(out["Cycle_ID"], errors="coerce").fillna(0).astype(int)
+
     out = out.sort_values(["Cycle_ID", "Day", "Time"]).reset_index(drop=True)
-    if "Time_Index" not in out.columns:
+    if "Time_Index" not in out.columns or pd.to_numeric(out["Time_Index"], errors="coerce").isna().any():
         out["Time_Index"] = out.groupby("Cycle_ID").cumcount() + 1
+    else:
+        out["Time_Index"] = pd.to_numeric(out["Time_Index"], errors="coerce").astype(int)
     out["Stage_ID"] = out["Ground Truth Criteria"].map({k: i for i, k in enumerate(CLASS_NAMES)})
     out["Condition_ID"] = out["Soil Condition"].map({"Wet": 0, "Optimal": 1, "Dry": 2})
     if "Split" not in out.columns:
@@ -103,10 +184,14 @@ def make_features(df, cfg):
     kelembapan & suhu (skala 0-1, memakai min/max dari data latih) + one-hot jam."""
     mins = np.array(cfg["mins"], dtype="float32")
     maxs = np.array(cfg["maxs"], dtype="float32")
-    sensor = (df[SENSOR_COLS].values.astype("float32") - mins) / (maxs - mins)
+    denom = np.where((maxs - mins) == 0, 1.0, maxs - mins)
+    raw_sensor = df[SENSOR_COLS].apply(pd.to_numeric, errors="coerce").values.astype("float32")
+    if np.isnan(raw_sensor).any():
+        raise ValueError("Terdapat nilai sensor kosong (NaN) pada jendela input LSTM.")
+    sensor = (raw_sensor - mins) / denom
     jam_idx = df["Time"].astype(str).map(JAM_MAP)
     if jam_idx.isna().any():
-        raise ValueError("Kolom Time harus berisi 08:00, 12:00, atau 16:00.")
+        raise ValueError("Kolom Time untuk prediksi LSTM harus berisi 08:00, 12:00, atau 16:00.")
     jam = np.eye(3, dtype="float32")[jam_idx.values.astype(int)]
     return np.hstack([sensor, jam])
 

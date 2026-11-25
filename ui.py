@@ -89,21 +89,22 @@ def icon(name, size=18, color="currentColor"):
     )
 
 
-_LOGO_B64_CACHE = None
+@st.cache_data(show_spinner=False)
+def _read_asset_b64(path_str: str) -> str:
+    """Membaca file gambar lokal menjadi string Base64 dengan caching Streamlit."""
+    p = Path(path_str)
+    if p.exists():
+        return base64.b64encode(p.read_bytes()).decode("ascii")
+    return ""
 
 
 def brand_logo_html(size=34):
     """Mengembalikan tag <img> base64 untuk logo Pakcoy di assets/logo_pakcoy.png."""
-    global _LOGO_B64_CACHE
-    if _LOGO_B64_CACHE is None:
-        logo_path = Path(__file__).parent / "assets" / "logo_pakcoy.png"
-        if logo_path.exists():
-            _LOGO_B64_CACHE = base64.b64encode(logo_path.read_bytes()).decode("ascii")
-        else:
-            _LOGO_B64_CACHE = ""
-    if _LOGO_B64_CACHE:
+    logo_path = Path(__file__).parent / "assets" / "logo_pakcoy.png"
+    logo_b64 = _read_asset_b64(str(logo_path))
+    if logo_b64:
         return (
-            f'<img src="data:image/png;base64,{_LOGO_B64_CACHE}" '
+            f'<img src="data:image/png;base64,{logo_b64}" '
             f'width="{size}" height="{size}" '
             f'style="width:{size}px;height:{size}px;object-fit:contain;display:block;" '
             f'alt="Logo Smart Farming Pakcoy"/>'
@@ -4494,12 +4495,8 @@ def pakcoy_plant_svg(stage_key="masa_pertumbuhan", maturity_pct=50.0, uid="pk", 
     )
 
 
-_STAGE_IMG_CACHE = {}
-
-
 def get_pakcoy_stage_img_b64(stage_key="masa_pertumbuhan", maturity_pct=50.0):
     """Mengembalikan data URL Base64 foto tanaman pakcoy asli yang sesuai dengan fase dan tingkat kematangan."""
-    global _STAGE_IMG_CACHE
     m = float(maturity_pct)
     if stage_key == "siap_panen" or m >= 89.0:
         if m >= 95.0:
@@ -4520,9 +4517,8 @@ def get_pakcoy_stage_img_b64(stage_key="masa_pertumbuhan", maturity_pct=50.0):
         file_name = "masa_pertumbuhan.jpg"
         p = Path(__file__).parent / "assets" / "pakcoy_stages" / file_name
 
-    if file_name not in _STAGE_IMG_CACHE and p.exists():
-        _STAGE_IMG_CACHE[file_name] = f"data:image/jpeg;base64,{base64.b64encode(p.read_bytes()).decode('ascii')}"
-    return _STAGE_IMG_CACHE.get(file_name, "")
+    raw_b64 = _read_asset_b64(str(p))
+    return f"data:image/jpeg;base64,{raw_b64}" if raw_b64 else ""
 
 
 def _stage_style_from_maturity(mat_pct, thresholds):
