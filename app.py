@@ -1,7 +1,9 @@
 """Smart Farming Pakcoy: dashboard realtime, eksplorasi data, monitoring sensor, LSTM, prediksi 4 hari,
 CNN (scan foto), dan scan gabungan."""
 import hashlib
+import importlib
 import io
+import sys
 import time
 from pathlib import Path
 
@@ -15,6 +17,44 @@ import ui
 import charts
 import ai_assistant
 import auth
+
+
+def _reload_local_modules_if_changed():
+    """Reload submodul lokal hanya saat file berubah di disk (aman untuk hot-reload Streamlit Cloud tanpa overhead rerun)."""
+    tracked = getattr(sys, "_pakcoy_mod_mtimes", None)
+    first_boot = tracked is None
+    if tracked is None:
+        tracked = {}
+        sys._pakcoy_mod_mtimes = tracked
+
+    ordered = [
+        ("utils", utils),
+        ("ui", ui),
+        ("charts", charts),
+        ("auth", auth),
+        ("ai_assistant", ai_assistant),
+    ]
+    reloaded_any = False
+    for name, mod in ordered:
+        mod_file = getattr(mod, "__file__", None)
+        if not mod_file:
+            continue
+        try:
+            mtime_ns = Path(mod_file).stat().st_mtime_ns
+        except OSError:
+            continue
+        prev = tracked.get(name)
+        # Reload jika belum pernah dilacak pada proses hot-reload atau file berubah (atau dependensi sebelumnya baru di-reload)
+        if first_boot or prev != mtime_ns or reloaded_any:
+            try:
+                importlib.reload(mod)
+                reloaded_any = True
+            except Exception:
+                pass
+            tracked[name] = mtime_ns
+
+
+_reload_local_modules_if_changed()
 
 _LOGO_FILE = Path(__file__).parent / "assets" / "logo_pakcoy.png"
 st.set_page_config(
@@ -34,14 +74,27 @@ if not auth.is_logged_in():
 ROOT = Path(__file__).parent
 MODELS_DIR = ROOT / "models"
 DATA_DIR = ROOT / "data"
-DRY, WET = utils.DRY_LIMIT, utils.WET_LIMIT
+DRY = float(getattr(utils, "DRY_LIMIT", 55.0))
+WET = float(getattr(utils, "WET_LIMIT", 76.0))
+TEMP_OPT_MIN = float(getattr(utils, "TEMP_OPT_MIN", 22.0))
+TEMP_OPT_MAX = float(getattr(utils, "TEMP_OPT_MAX", 28.0))
 MAT = utils.MATURITY_COL
 DEFAULT_THRESH = [66.5, 89.0]
 
 
+def _file_fingerprint(*paths):
+    """Sidik jari mtime+size agar cache data otomatis ter-invalidasi saat file CSV diperbarui."""
+    parts = []
+    for p in paths:
+        if p.exists():
+            st_i = p.stat()
+            parts.append(f"{p.name}:{st_i.st_mtime_ns}:{st_i.st_size}")
+    return "|".join(parts)
+
+
 # ================================================================= data & model
 @st.cache_data
-def load_builtin():
+def _load_builtin_cached(_fp: str):
     train_30 = DATA_DIR / "data_training_30hari.csv"
     asli_30 = DATA_DIR / "data_asli_30hari.csv"
     if train_30.exists() and asli_30.exists():
@@ -52,12 +105,17 @@ def load_builtin():
         sim = pd.read_csv(DATA_DIR / "data_training.csv")
         asli = pd.read_csv(DATA_DIR / "data_asli.csv")
     else:
-        st.error("File dataset tidak ditemukan di folder data/. Jalankan scripts/convert_to_30_days.py terlebih dahulu.")
+        st.error("File dataset tidak ditemukan di folder data/.")
         sim = pd.DataFrame()
         asli = pd.DataFrame()
     asli["Cycle_ID"] = 0
     asli["Split"] = "asli"
     return sim, asli
+
+
+def load_builtin():
+    fp = _file_fingerprint(DATA_DIR / "data_training_30hari.csv", DATA_DIR / "data_asli_30hari.csv")
+    return _load_builtin_cached(fp)
 
 
 def get_models_fingerprint():
@@ -587,7 +645,7 @@ def page_dashboard():
         dict(icon="history", label="Frekuensi Pengukuran", value=f"{freq_per_day}× / Hari", sub=time_range_str, color="#0284c7"),
         dict(icon="sprout", label="Rentang Umur Siklus", value=f"Hari {min_age}–{max_age}", sub=f"{n_days} hari pengamatan", color="#15803d"),
         dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub=f"Ideal: {DRY:.0f}% – {WET:.0f}%", color="#0d9488"),
-        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {utils.TEMP_OPT_MIN:.0f}°C – {utils.TEMP_OPT_MAX:.0f}°C", color="#d97706"),
+        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {TEMP_OPT_MIN:.0f}°C – {TEMP_OPT_MAX:.0f}°C", color="#d97706"),
         dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub=f"Rata-rata {avg_mat:.0f}% · Panen ≥ {th[1]:.0f}%", color="#15803d"),
     ])
     ui.maturity_legend_bar(th)
@@ -735,13 +793,17 @@ def page_forecast():
         cur_row = df.iloc[int(st.session_state["fc_step"]) - 1]
         cur_day = int(cur_row.get("Day", 1))
         cur_time = str(cur_row.get("Time", "08:00"))
-        step = c_sld.slider(
-            f"Titik Awal Prakiraan (Hari ke-{cur_day} · {cur_time})",
-            win,
-            max_fc,
-            key="fc_step",
-            help="Geser untuk mengubah hari dan sesi pengukuran awal prakiraan (3 sesi/hari: 08:00, 12:00, 16:00).",
-        )
+        if max_fc > win:
+            step = c_sld.slider(
+                f"Titik Awal Prakiraan (Hari ke-{cur_day} · {cur_time})",
+                win,
+                max_fc,
+                key="fc_step",
+                help="Geser untuk mengubah hari dan sesi pengukuran awal prakiraan (3 sesi/hari: 08:00, 12:00, 16:00).",
+            )
+        else:
+            step = win
+            c_sld.info(f"Titik Awal Prakiraan: Hari ke-{cur_day} · {cur_time} (1 jendela input tersedia)")
         run_clicked = c_run.button("Tampilkan Prakiraan", type="primary", use_container_width=True, key="btn_fc_run")
 
         row_fc = df.iloc[step - 1]
@@ -1172,7 +1234,11 @@ def photo_panel(m, img, key, sensor_row=None):
     idx = 0.0
     if m.get("cnn") is not None:
         names = cnn_names(m)
-        p = predict_image(m, img)
+        try:
+            p = predict_image(m, img)
+        except Exception as exc:
+            ui.banner("danger", f"Gagal menjalankan inferensi model CNN pada foto ini: {exc}")
+            return None, g
         raw_k = int(p.argmax())
 
         if not is_plant:
@@ -1384,19 +1450,29 @@ def page_cnn():
 
 # ================================================================= history perkembangan
 @st.cache_data
-def load_history_1400():
+def _load_history_1400_cached(_fp: str):
     p = DATA_DIR / "history_perkembangan_pakcoy_1400.csv"
     if p.exists():
         return pd.read_csv(p)
     return pd.DataFrame()
 
 
+def load_history_1400():
+    fp = _file_fingerprint(DATA_DIR / "history_perkembangan_pakcoy_1400.csv")
+    return _load_history_1400_cached(fp)
+
+
 @st.cache_data
-def load_raw_dataset():
+def _load_raw_dataset_cached(_fp: str):
     p = DATA_DIR / "dataset_asli_mentah.csv"
     if p.exists():
         return pd.read_csv(p)
     return pd.DataFrame()
+
+
+def load_raw_dataset():
+    fp = _file_fingerprint(DATA_DIR / "dataset_asli_mentah.csv")
+    return _load_raw_dataset_cached(fp)
 
 
 def page_history_perkembangan():
@@ -1462,37 +1538,36 @@ def page_history_perkembangan():
             df_view = df_view[df_view["Fase"] == sel_fase]
 
         if df_view.empty:
-            ui.banner("warn", "Tidak ada data yang cocok dengan kombinasi filter yang dipilih.")
-            return
+            ui.banner("warn", "Tidak ada data yang cocok dengan kombinasi filter yang dipilih. Ubah kombinasi filter di atas untuk menampilkan grafik.")
+        else:
+            # KPI Metrics Cards
+            avg_moist = df_view["Soil Moisture (%)"].mean()
+            avg_temp = df_view["Temperature (°C)"].mean()
+            max_mat = df_view["Ground Truth Maturity Level (%)"].max()
+            v_min_d, v_max_d = int(df_view["Day"].min()), int(df_view["Day"].max())
 
-        # KPI Metrics Cards
-        avg_moist = df_view["Soil Moisture (%)"].mean()
-        avg_temp = df_view["Temperature (°C)"].mean()
-        max_mat = df_view["Ground Truth Maturity Level (%)"].max()
-        v_min_d, v_max_d = int(df_view["Day"].min()), int(df_view["Day"].max())
+            ui.kpi_cards([
+                dict(icon="database", label="Total Data Pengecekan", value=f"{len(df_view):,} Catatan", sub=f"Dari {len(df_hist):,} data ({len(avail_cycles)} siklus)", color="#15803d"),
+                dict(icon="history", label="Frekuensi Pengukuran", value=f"{n_times_h}× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
+                dict(icon="sprout", label="Rentang Umur Terfilter", value=f"Hari {v_min_d}–{v_max_d}", sub="Siklus Panen Hari ke-30", color="#15803d"),
+                dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub=f"Ideal: {DRY:.0f}% – {WET:.0f}%", color="#0d9488"),
+                dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {TEMP_OPT_MIN:.0f}°C – {TEMP_OPT_MAX:.0f}°C", color="#d97706"),
+                dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub="Panen optimal 85–100%", color="#15803d"),
+            ])
 
-        ui.kpi_cards([
-            dict(icon="database", label="Total Data Pengecekan", value=f"{len(df_view):,} Catatan", sub=f"Dari {len(df_hist):,} data ({len(avail_cycles)} siklus)", color="#15803d"),
-            dict(icon="history", label="Frekuensi Pengukuran", value=f"{n_times_h}× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
-            dict(icon="sprout", label="Rentang Umur Terfilter", value=f"Hari {v_min_d}–{v_max_d}", sub="Siklus Panen Hari ke-30", color="#15803d"),
-            dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub=f"Ideal: {DRY:.0f}% – {WET:.0f}%", color="#0d9488"),
-            dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {utils.TEMP_OPT_MIN:.0f}°C – {utils.TEMP_OPT_MAX:.0f}°C", color="#d97706"),
-            dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub="Panen optimal 85–100%", color="#15803d"),
-        ])
+            # Visualisasi Utama
+            st.markdown('<div class="section-title">Kurva Pertumbuhan &amp; Kematangan Tanaman Menuju Panen (Hari 1 s.d. 30)</div>', unsafe_allow_html=True)
+            show(charts.history_maturity_curve(df_view), "fig_hist_mat")
 
-        # Visualisasi Utama
-        st.markdown('<div class="section-title">Kurva Pertumbuhan &amp; Kematangan Tanaman Menuju Panen (Hari 1 s.d. 30)</div>', unsafe_allow_html=True)
-        show(charts.history_maturity_curve(df_view), "fig_hist_mat")
+            st.markdown('<div class="section-title">Profil Fluktuasi Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)</div>', unsafe_allow_html=True)
+            show(charts.history_daily_15times(df_view), "fig_hist_daily")
 
-        st.markdown('<div class="section-title">Profil Fluktuasi Sensor 15 Kali Pengecekan Harian (06:00 – 20:00)</div>', unsafe_allow_html=True)
-        show(charts.history_daily_15times(df_view), "fig_hist_daily")
-
-        st.markdown('<div class="section-title">Tren Sensor Lingkungan &amp; Sebaran Kondisi Tanah</div>', unsafe_allow_html=True)
-        col_tr1, col_tr2 = st.columns([1.6, 1.0])
-        with col_tr1:
-            show(charts.history_sensor_trend(df_view), "fig_hist_trend")
-        with col_tr2:
-            show(charts.donut_condition(df_view), "fig_hist_donut")
+            st.markdown('<div class="section-title">Tren Sensor Lingkungan &amp; Sebaran Kondisi Tanah</div>', unsafe_allow_html=True)
+            col_tr1, col_tr2 = st.columns([1.6, 1.0])
+            with col_tr1:
+                show(charts.history_sensor_trend(df_view), "fig_hist_trend")
+            with col_tr2:
+                show(charts.donut_condition(df_view), "fig_hist_donut")
 
     with tab2:
         st.markdown(f'<div class="section-title" style="margin-top:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy ({len(df_hist):,} Data)</div>', unsafe_allow_html=True)

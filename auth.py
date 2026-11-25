@@ -58,7 +58,7 @@ def is_using_default_admin_password() -> bool:
 # ================================================================= Database & Security
 def get_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
     return conn
 

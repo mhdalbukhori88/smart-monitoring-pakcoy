@@ -447,7 +447,9 @@ def render_ai_assistant():
                 )
                 if chat_val:
                     clean_input = chat_val.strip()
-                    if len(clean_input) > MAX_INPUT_CHARS:
+                    if not clean_input:
+                        st.warning("Silakan ketik pertanyaan terlebih dahulu.")
+                    elif len(clean_input) > MAX_INPUT_CHARS:
                         st.warning(f"Pertanyaan melebihi batas {MAX_INPUT_CHARS} karakter. Silakan persingkat pertanyaan Anda.")
                     else:
                         st.session_state["pending_prompt"] = clean_input
