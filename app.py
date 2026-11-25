@@ -426,6 +426,20 @@ def _render_live_content(advance=False):
     jam_str = JAM_LABELS_ID.get(str(row["Time"]), str(row["Time"]))
 
     override = st.session_state.get("pump_override", "AUTO")
+    was_on = bool(st.session_state.get("pump_was_on", False))
+    pump_is_on, pump_status = utils.pump_decision(
+        float(row["Soil Moisture (%)"]),
+        was_on,
+        dry=DRY,
+        wet=WET,
+        margin=5.0,
+    )
+    if override == "ON":
+        st.session_state["pump_was_on"] = True
+    elif override == "OFF":
+        st.session_state["pump_was_on"] = False
+    else:
+        st.session_state["pump_was_on"] = pump_is_on
 
     ui.live_telemetry_console(
         day=int(row["Day"]),
@@ -442,6 +456,8 @@ def _render_live_content(advance=False):
         dry=DRY,
         wet=WET,
         override=override,
+        pump_is_on=pump_is_on,
+        pump_status=pump_status,
     )
 
     c1, c2 = st.columns(2)
@@ -509,17 +525,19 @@ def live_section():
     df = options[choice].sort_values("Time_Index").reset_index(drop=True)
     sig = (choice, len(df))
 
-    if "live_committed_sig" not in st.session_state:
+    if st.session_state.get("live_committed_sig") != sig:
         st.session_state["live_committed_sig"] = sig
         st.session_state["live_df"] = df
         st.session_state["live_i"] = min(29, max(0, len(df) - 1))
         st.session_state["live_playing"] = False
+        st.session_state["pump_was_on"] = False
 
     if btn_load:
         st.session_state["live_committed_sig"] = sig
         st.session_state["live_df"] = df
         st.session_state["live_i"] = min(29, max(0, len(df) - 1))
         st.session_state["live_playing"] = False
+        st.session_state["pump_was_on"] = False
         st.rerun()
 
     if btn_play:
@@ -528,6 +546,7 @@ def live_section():
         if st.session_state.get("live_sig") != sig:
             st.session_state["live_sig"] = sig
             st.session_state["live_i"] = 0
+            st.session_state["pump_was_on"] = False
         st.session_state["live_playing"] = not is_playing
         st.rerun()
 
@@ -551,29 +570,25 @@ def page_dashboard():
     col_age = "Day" if "Day" in df.columns else ("DAP" if "DAP" in df.columns else df.columns[0])
     min_age = int(df[col_age].min()) if len(df) else utils.START_DAY
     max_age = int(df[col_age].max()) if len(df) else utils.HARVEST_DAY
+    n_days = int(df[col_age].nunique()) if len(df) else utils.CYCLE_DAYS
     m = load_models()
     th = thresholds(m)
-    df_hist = load_history_1400()
-    if not df_hist.empty:
-        val_total = f"{len(df_hist):,} Catatan"
-        sub_total = f"Dari {len(df_hist):,} Data Tersedia"
-        val_moist = f"{df_hist['Soil Moisture (%)'].mean():.1f}%"
-        val_temp = f"{df_hist['Temperature (°C)'].mean():.1f}°C"
-        val_mat = f"{df_hist['Ground Truth Maturity Level (%)'].max():.0f}%" if "Ground Truth Maturity Level (%)" in df_hist.columns else "100%"
-    else:
-        val_total = "1,400 Catatan"
-        sub_total = "Dari 1.400 Data Tersedia"
-        val_moist = "67.1%"
-        val_temp = "27.2°C"
-        val_mat = "100%"
+
+    times_u = sorted(df["Time"].astype(str).unique().tolist()) if "Time" in df.columns and len(df) else utils.JAM_LIST
+    freq_per_day = len(times_u)
+    time_range_str = f"Pukul {times_u[0]} s.d. {times_u[-1]}" if len(times_u) >= 2 else (f"Pukul {times_u[0]}" if times_u else "-")
+    avg_moist = float(df["Soil Moisture (%)"].mean())
+    avg_temp = float(df["Temperature (°C)"].mean())
+    max_mat = float(df[MAT].max()) if MAT in df.columns else 0.0
+    avg_mat = float(df[MAT].mean()) if MAT in df.columns else 0.0
 
     ui.kpi_cards([
-        dict(icon="database", label="Total Data Pengecekan", value=val_total, sub=sub_total, color="#15803d"),
-        dict(icon="history", label="Frekuensi Pengukuran", value="15× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
-        dict(icon="sprout", label="Siklus Menuju Panen", value="Hari 1–30", sub="Masa Panen Hari ke-30", color="#15803d"),
-        dict(icon="droplets", label="Rata-rata Kelembapan", value=val_moist, sub="Ideal: 55% – 76%", color="#0d9488"),
-        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=val_temp, sub="Optimal: 22°C – 28°C", color="#d97706"),
-        dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=val_mat, sub="100% Siap Panen Raya", color="#15803d"),
+        dict(icon="database", label="Total Data Pengecekan", value=f"{len(df):,} Catatan", sub=f"Sumber: {name}", color="#15803d"),
+        dict(icon="history", label="Frekuensi Pengukuran", value=f"{freq_per_day}× / Hari", sub=time_range_str, color="#0284c7"),
+        dict(icon="sprout", label="Rentang Umur Siklus", value=f"Hari {min_age}–{max_age}", sub=f"{n_days} hari pengamatan", color="#15803d"),
+        dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub=f"Ideal: {DRY:.0f}% – {WET:.0f}%", color="#0d9488"),
+        dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {utils.TEMP_OPT_MIN:.0f}°C – {utils.TEMP_OPT_MAX:.0f}°C", color="#d97706"),
+        dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub=f"Rata-rata {avg_mat:.0f}% · Panen ≥ {th[1]:.0f}%", color="#15803d"),
     ])
     ui.maturity_legend_bar(th)
 
@@ -738,6 +753,8 @@ def page_forecast():
         fc_sig = (st.session_state.get("fc_series", ""), int(step), len(df))
         if run_clicked or "fc_committed_sig" not in st.session_state:
             st.session_state["fc_committed_sig"] = fc_sig
+        if run_clicked:
+            st.toast(f"Prakiraan diperbarui untuk Hari ke-{next_day}–{end_day}.")
 
         st.markdown('<div class="fc-ctrl-divider"></div>', unsafe_allow_html=True)
 
@@ -1365,50 +1382,63 @@ def load_raw_dataset():
 
 
 def page_history_perkembangan():
-    ui.hero("History Perkembangan Tanaman Pakcoy (Siklus 1–30)",
-            "Catatan komprehensif riwayat pertumbuhan tanaman pakcoy dari benih hingga panen raya (1.400 data pengukuran, 15× pengecekan harian).",
-            "history")
-
     df_hist = load_history_1400()
     if df_hist.empty:
+        ui.hero("History Perkembangan Tanaman Pakcoy",
+                "Catatan riwayat pertumbuhan tanaman pakcoy resolusi tinggi (15× pengecekan harian).",
+                "history")
         ui.banner("warn", "File dataset riwayat perkembangan (history_perkembangan_pakcoy_1400.csv) belum tersedia.")
         return
 
+    avail_cycles = sorted(int(c) for c in df_hist["Cycle_ID"].dropna().unique())
+    min_cyc, max_cyc = avail_cycles[0], avail_cycles[-1]
+    all_cyc_label = f"Semua Siklus ({min_cyc}–{max_cyc})"
+    avail_days = sorted(int(d) for d in df_hist["Day"].dropna().unique())
+    min_day_h, max_day_h = avail_days[0], avail_days[-1]
+    n_times_h = int(df_hist["Time"].nunique()) if "Time" in df_hist.columns else 15
+
+    ui.hero(
+        f"History Perkembangan Tanaman Pakcoy ({len(df_hist):,} Data · {n_times_h}×/Hari)",
+        f"Riwayat pertumbuhan pakcoy resolusi tinggi (06:00–20:00, {n_times_h}×/hari) mencakup {len(avail_cycles)} siklus pengamatan (Siklus 1–3 penuh Hari 1–30 & awal Siklus 4).",
+        "history",
+    )
+
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Riwayat & Analisis Pertumbuhan",
-        "📋 Tabel Lengkap (1.400 Data Pengecekan)",
+        f"📋 Tabel Lengkap ({len(df_hist):,} Data Pengecekan)",
         "📁 Dataset Asli Excel (1.140 Data Mentah)",
         "🌱 Panduan Siklus 1–30 & Standar Panen"
     ])
 
     with tab1:
-        # Filter interaktif
+        # Filter interaktif (dinamis sesuai isi aktual dataset agar tidak ada opsi kosong)
         with st.container(border=True):
             st.markdown('<div class="section-title" style="margin-top:0;">Filter Riwayat Perkembangan Tanaman</div>', unsafe_allow_html=True)
             f1, f2, f3, f4 = st.columns([1.2, 1.1, 1.2, 1.1])
-            
-            cycle_opts = ["Semua Siklus (1–30)"] + [f"Siklus {i}" for i in range(1, 31)]
+
+            cycle_opts = [all_cyc_label] + [f"Siklus {i}" for i in avail_cycles]
             sel_cyc = f1.selectbox("Pilih Siklus Budidaya:", cycle_opts, key="hist_filter_cyc")
-            
-            day_opts = ["Semua Hari (1–30)"] + [f"Hari ke-{i}" for i in range(1, 31)]
+
+            day_opts = [f"Semua Hari ({min_day_h}–{max_day_h})"] + [f"Hari ke-{i}" for i in avail_days]
             sel_day = f2.selectbox("Pilih Umur Tanaman:", day_opts, key="hist_filter_day")
-            
+
             times_all = sorted(list(df_hist["Time"].unique()))
-            time_opts = ["Semua Jam (15× Pengecekan)"] + times_all
+            time_opts = [f"Semua Jam ({n_times_h}× Pengecekan)"] + times_all
             sel_time = f3.selectbox("Jam Pengukuran:", time_opts, key="hist_filter_time")
-            
-            fase_opts = ["Semua Fase", "Fase Awal", "Fase Vegetatif", "Mendekati Panen", "Siap Panen"]
+
+            fase_avail = [f for f in ["Fase Awal", "Fase Vegetatif", "Mendekati Panen", "Siap Panen"] if f in set(df_hist["Fase"].unique())]
+            fase_opts = ["Semua Fase"] + fase_avail
             sel_fase = f4.selectbox("Fase Pertumbuhan:", fase_opts, key="hist_filter_fase")
 
         # Terapkan filter
         df_view = df_hist.copy()
-        if sel_cyc != "Semua Siklus (1–30)":
+        if sel_cyc != all_cyc_label:
             cyc_num = int(sel_cyc.replace("Siklus ", ""))
             df_view = df_view[df_view["Cycle_ID"] == cyc_num]
-        if sel_day != "Semua Hari (1–30)":
+        if sel_day != f"Semua Hari ({min_day_h}–{max_day_h})":
             day_num = int(sel_day.replace("Hari ke-", ""))
             df_view = df_view[df_view["Day"] == day_num]
-        if sel_time != "Semua Jam (15× Pengecekan)":
+        if sel_time != f"Semua Jam ({n_times_h}× Pengecekan)":
             df_view = df_view[df_view["Time"] == sel_time]
         if sel_fase != "Semua Fase":
             df_view = df_view[df_view["Fase"] == sel_fase]
@@ -1421,14 +1451,15 @@ def page_history_perkembangan():
         avg_moist = df_view["Soil Moisture (%)"].mean()
         avg_temp = df_view["Temperature (°C)"].mean()
         max_mat = df_view["Ground Truth Maturity Level (%)"].max()
+        v_min_d, v_max_d = int(df_view["Day"].min()), int(df_view["Day"].max())
 
         ui.kpi_cards([
-            dict(icon="database", label="Total Data Pengecekan", value=f"{len(df_view):,} Catatan", sub="Dari 1.400 Data Tersedia", color="#15803d"),
-            dict(icon="history", label="Frekuensi Pengukuran", value="15× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
-            dict(icon="sprout", label="Siklus Menuju Panen", value="Hari 1–30", sub="Masa Panen Hari ke-30", color="#15803d"),
-            dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub="Ideal: 55% – 76%", color="#0d9488"),
-            dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub="Optimal: 22°C – 28°C", color="#d97706"),
-            dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub="100% Siap Panen Raya", color="#15803d"),
+            dict(icon="database", label="Total Data Pengecekan", value=f"{len(df_view):,} Catatan", sub=f"Dari {len(df_hist):,} data ({len(avail_cycles)} siklus)", color="#15803d"),
+            dict(icon="history", label="Frekuensi Pengukuran", value=f"{n_times_h}× / Hari", sub="Pukul 06:00 s.d. 20:00", color="#0284c7"),
+            dict(icon="sprout", label="Rentang Umur Terfilter", value=f"Hari {v_min_d}–{v_max_d}", sub="Siklus Panen Hari ke-30", color="#15803d"),
+            dict(icon="droplets", label="Rata-rata Kelembapan", value=f"{avg_moist:.1f}%", sub=f"Ideal: {DRY:.0f}% – {WET:.0f}%", color="#0d9488"),
+            dict(icon="thermometer", label="Rata-rata Suhu Udara", value=f"{avg_temp:.1f}°C", sub=f"Optimal: {utils.TEMP_OPT_MIN:.0f}°C – {utils.TEMP_OPT_MAX:.0f}°C", color="#d97706"),
+            dict(icon="sparkles", label="Tingkat Kematangan Puncak", value=f"{max_mat:.0f}%", sub="Panen optimal 85–100%", color="#15803d"),
         ])
 
         # Visualisasi Utama
@@ -1446,8 +1477,11 @@ def page_history_perkembangan():
             show(charts.donut_condition(df_view), "fig_hist_donut")
 
     with tab2:
-        st.markdown('<div class="section-title" style="margin-top:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy (1.400 Data)</div>', unsafe_allow_html=True)
-        st.caption("Data mencakup 30 siklus pertumbuhan pakcoy dari hari ke-1 hingga hari ke-30 (masa panen) dengan frekuensi 15 kali pengecekan setiap harinya.")
+        st.markdown(f'<div class="section-title" style="margin-top:0;">Tabel Lengkap Riwayat Perkembangan Pakcoy ({len(df_hist):,} Data)</div>', unsafe_allow_html=True)
+        st.caption(
+            f"Data mencakup {len(avail_cycles)} siklus pengamatan (Siklus 1–3 penuh Hari 1–30 @ 450 baris, "
+            f"serta awal Siklus 4 sebanyak 50 baris) dengan frekuensi {n_times_h} kali pengecekan per hari."
+        )
 
         tbl_show = df_hist.copy()
         disp_cols = {
@@ -1478,7 +1512,12 @@ def page_history_perkembangan():
         )
 
     with tab3:
-        ui.banner("info", "Menampilkan dataset asli mentah dari file 'dataset asli/new Dataset_Pakcoy.xlsx' (1.140 baris data observasi kebun dengan interval 3 kali pengukuran per hari: 08:00, 12:00, 16:00).")
+        ui.banner(
+            "info",
+            "Menampilkan dataset asli mentah dari 'dataset asli/new Dataset_Pakcoy.xlsx' (1.140 baris, 3×/hari: 08:00, 12:00, 16:00). "
+            "Catatan pra-pemrosesan: data mentah ini memiliki rentang Hari 1–380 (93,4% berlabel Harvest Ready) dan beberapa anomali label kondisi tanah, "
+            "sehingga dibersihkan & dibatasi ke siklus 30 hari sebelum digunakan untuk pemodelan LSTM.",
+        )
         df_raw = load_raw_dataset()
         if not df_raw.empty:
             k1, k2, k3 = st.columns(3)
@@ -1503,12 +1542,12 @@ def page_history_perkembangan():
 
         st.markdown(
             """
-| Tahap Pertumbuhan | Umur Tanaman (Hari ke-) | Rentang HST | Tingkat Kematangan | Target Kelembapan | Suhu Optimal | Indikator Fisik Daun & Rumpun |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Fase Awal (Initial Stage)** | Hari 1 – 10 | 10 – 19 HST | 5% – 33% | 70% – 80% (Lembap) | 22°C – 26°C | Daun 2–4 helai, adaptasi akar baru setelah pindah tanam dari semai. |
-| **2. Fase Vegetatif** | Hari 11 – 20 | 20 – 29 HST | 34% – 66% | 60% – 75% (Optimal) | 22°C – 28°C | Pertumbuhan cepat, daun 6–10 helai, batang mulai kokoh dan hijau cerah. |
-| **3. Mendekati Panen (Pre-Harvest)** | Hari 21 – 25 | 30 – 34 HST | 67% – 84% | 55% – 70% (Optimal) | 22°C – 28°C | Daun melebar, tebal, roset terbentuk kompak, tekstur renyah. |
-| **4. Siap Panen (Harvest Ready)** | Hari 26 – 30 | 35 – 40 HST | 85% – 100% | 55% – 65% (Optimal) | 20°C – 28°C | **Panen Raya pada Hari ke-30!** Bobot basah 150–250g per rumpun, daun lebat dan segar. |
+| Tahap Pertumbuhan (4 Fase Agronomi) | Pemetaan Kelas Model AI (3 Kelas) | Umur Tanaman (Hari ke-) | Rentang HST | Kematangan (Riwayat 15×/Hari) | Ambang Model LSTM | Target Kelembapan | Suhu Optimal |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. Fase Awal (Initial)** | `Masa Pertumbuhan` | Hari 1 – 10 | 10 – 19 HST | 5% – 33% | < 66,5% | 70% – 76% | 22°C – 26°C |
+| **2. Fase Vegetatif** | `Masa Pertumbuhan` | Hari 11 – 20 | 20 – 29 HST | 34% – 66% | < 66,5% | 60% – 75% | 22°C – 28°C |
+| **3. Mendekati Panen** | `Mendekati Panen` | Hari 21 – 25 | 30 – 34 HST | 67% – 84% | 66,5% – 89,0% | 55% – 70% | 22°C – 28°C |
+| **4. Siap Panen** | `Siap Panen` | Hari 26 – 30 | 35 – 40 HST | 85% – 100% | ≥ 89,0% | 55% – 65% | 22°C – 28°C |
             """
         )
         st.info("💡 **Tips Panen dari Pakar Agronomi:** Panen pakcoy terbaik dilakukan pada pagi hari (pukul 06:00 – 08:00) saat kelembapan udara masih tinggi dan terik matahari belum membakar daun. Hal ini menjaga kadar air daun tetap tinggi dan menjaga kesegaran lebih lama.")

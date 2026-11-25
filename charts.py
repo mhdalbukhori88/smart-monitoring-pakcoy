@@ -191,6 +191,28 @@ def box_temp_stage(df):
     return daily_time_pattern(df)
 
 
+def _day_ticks_from_indices(indices, max_ticks=8):
+    """Bangun posisi tick dan label 'Hari ke-N' yang rapi dari daftar Time_Index."""
+    if not indices:
+        return [], []
+    day_first = {}
+    for idx in indices:
+        try:
+            d = (int(idx) - 1) // 3 + 1
+        except Exception:
+            continue
+        if d not in day_first:
+            day_first[d] = idx
+    days = sorted(day_first.keys())
+    if not days:
+        return [], []
+    step = max(1, (len(days) + max_ticks - 1) // max_ticks)
+    chosen = days[::step]
+    if days[-1] not in chosen:
+        chosen.append(days[-1])
+    return [day_first[d] for d in chosen], [f"Hari {d}" for d in chosen]
+
+
 def live_line(hist, col, title, color, ytitle, dry=None, wet=None, trend=None, height=300):
     """Garis sensor yang bergerak. hist: dataframe ber-indeks Time_Index. trend: prediksi regresi (opsional)."""
     x = hist.index.tolist()
@@ -228,7 +250,11 @@ def live_line(hist, col, title, color, ytitle, dry=None, wet=None, trend=None, h
     if wet is not None:
         fig.add_hline(y=wet, line_dash="dot", line_color="#0284c7", annotation_text="Batas Basah (Pompa Mati)", annotation_position="top left",
                       annotation_font_color="#0284c7")
-    return _layout(fig, title, height=height, xtitle="Urutan Pengukuran Sensor (Hari ke-1 s.d. 30)", ytitle=ytitle)
+    tvals, ttext = _day_ticks_from_indices(x, max_ticks=7)
+    fig = _layout(fig, title, height=height, xtitle="Umur Tanaman (Hari ke-)", ytitle=ytitle)
+    if tvals:
+        fig.update_xaxes(tickmode="array", tickvals=tvals, ticktext=ttext)
+    return fig
 
 
 def growth_curve(grow, thresholds):
@@ -254,8 +280,12 @@ def growth_curve(grow, thresholds):
             marker=dict(color="#15803d", size=9)
         ))
     fig.update_yaxes(range=[0, 100])
-    return _layout(fig, "Kurva Pertumbuhan & Kematangan Sejak Awal Tanam", height=300, legend=False,
-                   xtitle="Urutan Pengukuran Sensor (Hari ke-1 s.d. 30)", ytitle="Tingkat Kematangan (%)")
+    tvals, ttext = _day_ticks_from_indices(x, max_ticks=8)
+    fig = _layout(fig, "Kurva Pertumbuhan & Kematangan Sejak Awal Tanam", height=300, legend=False,
+                  xtitle="Umur Tanaman (Hari ke-)", ytitle="Tingkat Kematangan (%)")
+    if tvals:
+        fig.update_xaxes(tickmode="array", tickvals=tvals, ticktext=ttext)
+    return fig
 
 
 def gauge(value, title, thresholds=(66.5, 89.0)):

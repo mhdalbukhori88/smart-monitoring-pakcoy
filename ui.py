@@ -3966,7 +3966,7 @@ def action_guide_card(moist, temp, mat, stage_label, dry=55.0, wet=76.0, title="
     st.markdown(html_out, unsafe_allow_html=True)
 
 
-def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, moist, temp, cond_str, mat, stage_str, stage_source, dry=55.0, wet=76.0, override="AUTO"):
+def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, moist, temp, cond_str, mat, stage_str, stage_source, dry=55.0, wet=76.0, override="AUTO", pump_is_on=None, pump_status=None):
     """Konsol telemetri live terpadu: status header + progress bar + 5 kartu metrik proporsional + 3 rekomendasi tindakan."""
     adv = _compute_action_advice(moist, temp, mat, stage_str, dry=dry, wet=wet)
     water_status, water_color, water_bg, water_advice = adv["water"]
@@ -3977,7 +3977,7 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
 
     m_val = float(moist)
     if override == "ON":
-        p_badge = "⚡ MANUAL HIDUP"
+        p_badge = "MANUAL HIDUP"
         p_val = "HIDUP (Menyiram)"
         p_color = "#dc2626"
         p_bg = "#fef2f2"
@@ -3986,7 +3986,7 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         water_color = "#dc2626"
         water_advice = "Pompa air sedang menyala atas kontrol manual pengguna. Matikan pompa saat tanah sudah cukup basah."
     elif override == "OFF":
-        p_badge = "🛑 MANUAL MATI"
+        p_badge = "MANUAL MATI"
         p_val = "MATI"
         p_color = "#475569"
         p_bg = "#f1f5f9"
@@ -3994,34 +3994,46 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         water_status = "Pompa Air MATI (Manual)"
         water_color = "#475569"
         water_advice = "Pompa air dinonaktifkan secara manual oleh pengguna."
-    else:  # AUTO
-        if m_val < dry:
-            p_badge = "⚡ OTOMATIS HIDUP"
+    else:  # AUTO (berbasis histeresis utils.pump_decision)
+        eff_status = pump_status
+        if eff_status is None:
+            eff_status = "dry" if m_val < dry else ("wet" if m_val >= wet else "ok")
+        if eff_status == "dry":
+            p_badge = "OTOMATIS HIDUP"
             p_val = "HIDUP (Menyiram)"
             p_color = "#dc2626"
             p_bg = "#fef2f2"
-            p_sub = "Tanah kering (<55%)"
+            p_sub = f"Tanah kering (<{dry:.0f}%)"
             water_status = "Tanah Kering — Pompa Air HIDUP"
             water_color = "#dc2626"
-            water_advice = f"Kelembapan ({m_val:.0f}%) di bawah batas aman ({dry:.0f}%). Pompa air otomatis DINYALAKAN (HIDUP) untuk menyiram tanaman pakcoy."
-        elif m_val >= wet:
-            p_badge = "🛑 OTOMATIS MATI"
+            water_advice = f"Kelembapan ({m_val:.0f}%) di bawah batas aman ({dry:.0f}%). Pompa air otomatis DINYALAKAN untuk menyiram pakcoy."
+        elif eff_status == "recovering":
+            p_badge = "HISTERESIS AKTIF"
+            p_val = "HIDUP (Pemulihan)"
+            p_color = "#d97706"
+            p_bg = "#fffbeb"
+            p_sub = f"Pemulihan {dry:.0f}–{dry + 5:.0f}%"
+            water_status = "Fase Pemulihan — Pompa Tetap HIDUP"
+            water_color = "#d97706"
+            water_advice = f"Kelembapan ({m_val:.0f}%) masih dalam margin histeresis ({dry:.0f}–{dry + 5:.0f}%). Pompa tetap aktif singkat agar kelembapan stabil."
+        elif eff_status == "wet":
+            p_badge = "OTOMATIS MATI"
             p_val = "MATI"
             p_color = "#0284c7"
             p_bg = "#f0f9ff"
-            p_sub = "Proteksi basah (≥76%)"
+            p_sub = f"Proteksi basah (≥{wet:.0f}%)"
             water_status = "Tanah Terlalu Basah — Pompa Air MATI"
             water_color = "#0284c7"
-            water_advice = f"Kelembapan ({m_val:.0f}%) melebihi kapasitas optimal (≥ {wet:.0f}%). Pompa air otomatis DIMATIKAN untuk mencegah pembusukan akar."
+            water_advice = f"Kelembapan ({m_val:.0f}%) melebihi kapasitas optimal (≥ {wet:.0f}%). Pompa otomatis DIMATIKAN untuk mencegah pembusukan akar."
         else:
-            p_badge = "🟢 STANDBY (SIAGA)"
+            p_badge = "SIAGA (STANDBY)"
             p_val = "MATI (Siaga)"
             p_color = "#15803d"
             p_bg = "#f0fdf4"
-            p_sub = "Kelembapan optimal 55–76%"
+            p_sub = f"Optimal {dry:.0f}–{wet:.0f}%"
             water_status = "Kelembapan Ideal — Pompa Air MATI"
             water_color = "#15803d"
-            water_advice = f"Kelembapan ({m_val:.0f}%) berada di zona optimal ({dry:.0f}–{wet:.0f}%). Pompa air MATI / SIAGA (hemat air & energi)."
+            water_advice = f"Kelembapan ({m_val:.0f}%) berada di zona optimal ({dry:.0f}–{wet:.0f}%). Pompa dalam mode SIAGA (hemat air & energi)."
 
     html_out = (
         f'<div class="live-console-card">'
@@ -4052,7 +4064,7 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         f'<div class="live-metric-box">'
         f'<div class="live-metric-head">'
         f'<span class="live-metric-lbl">Suhu Udara Kebun</span>'
-        f'<span class="live-metric-badge" style="background:{temp_bg};color:{temp_color};">Ideal 20&ndash;30&deg;C</span>'
+        f'<span class="live-metric-badge" style="background:{temp_bg};color:{temp_color};">Optimal 22&ndash;28&deg;C</span>'
         f'</div>'
         f'<div class="live-metric-val">{float(temp):.1f}&deg;C</div>'
         f'<div class="live-metric-sub">{_e(temp_status)}</div>'
@@ -4079,10 +4091,10 @@ def live_telemetry_console(day, cycle_days, jam_str, step_idx, total_steps, mois
         f'<div class="live-metric-box">'
         f'<div class="live-metric-head">'
         f'<span class="live-metric-lbl">Status Pompa Air</span>'
-        f'<span class="live-metric-badge" style="background:{p_bg};color:{p_color};">{p_badge}</span>'
+        f'<span class="live-metric-badge" style="background:{p_bg};color:{p_color};">{_e(p_badge)}</span>'
         f'</div>'
-        f'<div class="live-metric-val" style="font-size:17.5px;color:{p_color};">{p_val}</div>'
-        f'<div class="live-metric-sub">{p_sub}</div>'
+        f'<div class="live-metric-val" style="font-size:17.5px;color:{p_color};">{_e(p_val)}</div>'
+        f'<div class="live-metric-sub">{_e(p_sub)}</div>'
         f'</div>'
         f'</div>'
         # 3. Integrated 3-Column Action Guide
