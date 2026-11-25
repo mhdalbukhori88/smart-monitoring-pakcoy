@@ -66,9 +66,12 @@ Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart
 - LSTM Klasifikasi (`model_lstm_klasifikasi.keras`, 31.491 parameter):
   - Input: window 6 time steps × 5 fitur (kelembapan & suhu normalisasi min-max data latih + one-hot jam 08:00/12:00/16:00).
   - Output: 3 kelas Softmax (`masa_pertumbuhan`, `mendekati_panen`, `siap_panen`).
+  - Akurasi uji simulasi 30 hari (`n=425`): 84.7% (Macro-F1 79.4%); akurasi data asli 30 hari (`n=85`): 72.9% (Macro-F1 61.2%).
 - LSTM Forecast (`model_lstm_forecast.keras`, 75.204 parameter):
   - Input: window 12 time steps × 5 fitur.
   - Output: 12 time steps ke depan × 3 target (kelembapan, suhu, maturity/100).
+  - Uji simulasi 30 hari (`n=335`): Kelembapan MAE 1.63% (RMSE 2.12%, R² 0.890), Suhu MAE 0.75°C (RMSE 0.93°C, R² 0.786), Kematangan MAE 2.07% (RMSE 2.65%, R² 0.987).
+  - Uji data asli 30 hari (`n=67`): Kelembapan MAE 0.66% (R² 0.982), Suhu MAE 0.13°C (R² 0.992), Kematangan MAE 12.01% (R² 0.680).
 - CNN MobileNetV2 (`model_cnn.keras`, 2.263.108 parameter):
   - Input: gambar 224×224 RGB; Output: 4 kelas Softmax (`bukan_pakcoy`, `masa_pertumbuhan`, `mendekati_panen`, `siap_panen`).
   - Akurasi uji pada 26 citra uji: 88.5% (23/26 benar, Macro-F1 87.9%).

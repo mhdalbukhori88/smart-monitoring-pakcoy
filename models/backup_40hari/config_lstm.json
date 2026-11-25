@@ -1,0 +1,154 @@
+{
+  "tf_version": "2.21.0",
+  "class_names": [
+    "masa_pertumbuhan",
+    "mendekati_panen",
+    "siap_panen"
+  ],
+  "sensor_cols": [
+    "Soil Moisture (%)",
+    "Temperature (\u00b0C)"
+  ],
+  "mins": [
+    43.0,
+    22.100000381469727
+  ],
+  "maxs": [
+    86.0,
+    32.900001525878906
+  ],
+  "jam_map": {
+    "08:00": 0,
+    "12:00": 1,
+    "16:00": 2
+  },
+  "w_cls": 6,
+  "w_in": 12,
+  "h_out": 12,
+  "maturity_thresholds": [
+    66.5,
+    89.0
+  ],
+  "metrics": {
+    "akurasi_uji_simulasi": 0.8678260869565217,
+    "akurasi_data_asli": 0.7304347826086957,
+    "mae_forecast_uji_simulasi": {
+      "moisture": 1.4940094947814941,
+      "temperature": 0.7199317812919617,
+      "maturity": 2.0180158615112305
+    },
+    "mae_forecast_data_asli": {
+      "moisture": 0.5947168469429016,
+      "temperature": 0.0985390767455101,
+      "maturity": 25.36415672302246
+    }
+  },
+  "evaluasi": {
+    "Uji simulasi": {
+      "akurasi": 0.8678260869565217,
+      "cm": [
+        [
+          329,
+          15,
+          0
+        ],
+        [
+          2,
+          77,
+          56
+        ],
+        [
+          0,
+          3,
+          93
+        ]
+      ],
+      "report": {
+        "masa_pertumbuhan": {
+          "precision": 0.9939577039274925,
+          "recall": 0.9563953488372093,
+          "f1-score": 0.9748148148148148,
+          "support": 344.0
+        },
+        "mendekati_panen": {
+          "precision": 0.8105263157894737,
+          "recall": 0.5703703703703704,
+          "f1-score": 0.6695652173913044,
+          "support": 135.0
+        },
+        "siap_panen": {
+          "precision": 0.6241610738255033,
+          "recall": 0.96875,
+          "f1-score": 0.7591836734693878,
+          "support": 96.0
+        },
+        "accuracy": 0.8678260869565217,
+        "macro avg": {
+          "precision": 0.8095483645141566,
+          "recall": 0.8318385730691933,
+          "f1-score": 0.8011879018918355,
+          "support": 575.0
+        },
+        "weighted avg": {
+          "precision": 0.8891512449911038,
+          "recall": 0.8678260869565217,
+          "f1-score": 0.8671464926907541,
+          "support": 575.0
+        }
+      }
+    },
+    "Data asli": {
+      "akurasi": 0.7304347826086957,
+      "cm": [
+        [
+          55,
+          0,
+          0
+        ],
+        [
+          14,
+          1,
+          0
+        ],
+        [
+          0,
+          17,
+          28
+        ]
+      ],
+      "report": {
+        "masa_pertumbuhan": {
+          "precision": 0.7971014492753623,
+          "recall": 1.0,
+          "f1-score": 0.8870967741935484,
+          "support": 55.0
+        },
+        "mendekati_panen": {
+          "precision": 0.05555555555555555,
+          "recall": 0.06666666666666667,
+          "f1-score": 0.06060606060606061,
+          "support": 15.0
+        },
+        "siap_panen": {
+          "precision": 1.0,
+          "recall": 0.6222222222222222,
+          "f1-score": 0.7671232876712328,
+          "support": 45.0
+        },
+        "accuracy": 0.7304347826086957,
+        "macro avg": {
+          "precision": 0.6175523349436393,
+          "recall": 0.562962962962963,
+          "f1-score": 0.5716087074902806,
+          "support": 115.0
+        },
+        "weighted avg": {
+          "precision": 0.779773156899811,
+          "recall": 0.7304347826086957,
+          "f1-score": 0.7323474907386222,
+          "support": 115.0
+        }
+      }
+    }
+  }
+}
