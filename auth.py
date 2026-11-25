@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
@@ -16,6 +17,42 @@ import ui
 ROOT = Path(__file__).parent
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "users.db"
+
+MAX_PASSWORD_LEN = 128
+MAX_FULLNAME_LEN = 80
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_COOLDOWN_SEC = 60
+
+
+def _read_secret(name: str, default: str = "") -> str:
+    """Baca nilai konfigurasi dari st.secrets atau environment variable secara aman."""
+    try:
+        if name in st.secrets and st.secrets[name]:
+            val = str(st.secrets[name]).strip()
+            if val and not val.startswith("MASUKKAN_"):
+                return val
+    except Exception:
+        pass
+    env_val = os.environ.get(name, "").strip()
+    if env_val and not env_val.startswith("MASUKKAN_"):
+        return env_val
+    return default
+
+
+def _get_default_admin_creds() -> tuple[str, str, bool]:
+    """Mengembalikan (username, password, is_fallback_demo) untuk akun administrator default."""
+    admin_user = _read_secret("ADMIN_USERNAME", "admin").lower()
+    if not re.match(r"^[a-z0-9_.]{3,30}$", admin_user):
+        admin_user = "admin"
+    configured_pwd = _read_secret("ADMIN_PASSWORD", "")
+    if len(configured_pwd) >= 6:
+        return admin_user, configured_pwd[:MAX_PASSWORD_LEN], False
+    return admin_user, "admin123", True
+
+
+def is_using_default_admin_password() -> bool:
+    _, _, is_fallback = _get_default_admin_creds()
+    return is_fallback
 
 
 # ================================================================= Database & Security
@@ -41,8 +78,9 @@ def verify_password(password: str, salt_hex: str, expected_hash: str) -> bool:
     return hmac.compare_digest(calculated_hash, expected_hash)
 
 
-def init_db():
-    """Inisialisasi tabel pengguna dan buat akun default pertama jika database masih baru."""
+@st.cache_resource(show_spinner=False)
+def _init_db_once(db_path_str: str, admin_user: str, admin_sig: str, is_custom_pwd: bool):
+    """Inisialisasi skema SQLite dan akun admin default sekali per siklus proses."""
     with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -58,20 +96,37 @@ def init_db():
         """)
         conn.commit()
 
-        # Seed akun default jika belum ada user sama sekali
+        _, admin_pwd, _ = _get_default_admin_creds()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         if count == 0:
-            pwd_hash, salt = hash_password("admin123")
+            pwd_hash, salt = hash_password(admin_pwd)
             conn.execute(
                 "INSERT INTO users (username, full_name, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)",
-                ("admin", "Admin", pwd_hash, salt, "Administrator")
+                (admin_user, "Admin", pwd_hash, salt, "Administrator")
             )
             conn.commit()
         else:
             conn.execute("UPDATE users SET full_name = 'Admin' WHERE username = 'admin' AND full_name = 'Administrator Pakcoy'")
+            if is_custom_pwd:
+                cur.execute("SELECT id, password_hash, salt FROM users WHERE username = ?", (admin_user,))
+                existing_admin = cur.fetchone()
+                if existing_admin and not verify_password(admin_pwd, existing_admin["salt"], existing_admin["password_hash"]):
+                    new_hash, new_salt = hash_password(admin_pwd)
+                    conn.execute(
+                        "UPDATE users SET password_hash = ?, salt = ? WHERE id = ?",
+                        (new_hash, new_salt, existing_admin["id"])
+                    )
             conn.commit()
+    return True
+
+
+def init_db():
+    """Inisialisasi tabel pengguna (cached agar tidak mengeksekusi SQL di setiap rerun)."""
+    admin_user, admin_pwd, is_fallback = _get_default_admin_creds()
+    admin_sig = hashlib.sha256(f"{admin_user}:{admin_pwd}".encode("utf-8")).hexdigest()[:16]
+    _init_db_once(str(DB_PATH), admin_user, admin_sig, not is_fallback)
 
 
 def register_user(username: str, full_name: str, password: str, role: str = "Pengguna") -> tuple[bool, str]:
@@ -85,10 +140,12 @@ def register_user(username: str, full_name: str, password: str, role: str = "Pen
         return False, "Username harus terdiri dari 3 hingga 30 karakter."
     if not re.match(r"^[a-z0-9_.]+$", username):
         return False, "Username hanya boleh memuat huruf kecil, angka, titik, atau garis bawah (_)."
-    if len(full_name) < 2:
-        return False, "Nama lengkap minimal 2 karakter."
+    if len(full_name) < 2 or len(full_name) > MAX_FULLNAME_LEN:
+        return False, f"Nama lengkap harus terdiri dari 2 hingga {MAX_FULLNAME_LEN} karakter."
     if len(password) < 6:
         return False, "Kata sandi minimal 6 karakter demi keamanan akun."
+    if len(password) > MAX_PASSWORD_LEN:
+        return False, f"Kata sandi maksimal {MAX_PASSWORD_LEN} karakter."
 
     pwd_hash, salt = hash_password(password)
     try:
@@ -110,6 +167,8 @@ def authenticate(username: str, password: str) -> tuple[bool, dict | None, str]:
     username = username.strip().lower()
     if not username or not password:
         return False, None, "Username dan kata sandi wajib diisi."
+    if len(username) > 30 or len(password) > MAX_PASSWORD_LEN:
+        return False, None, "Username atau kata sandi tidak cocok."
 
     with get_db() as conn:
         cur = conn.cursor()
@@ -148,15 +207,23 @@ def get_current_user() -> dict | None:
 def login_user(user_dict: dict):
     st.session_state["authenticated"] = True
     st.session_state["user"] = user_dict
+    st.session_state.pop("auth_failed_attempts", None)
+    st.session_state.pop("auth_lock_until", None)
     st.rerun()
 
 
 def logout():
     st.session_state["authenticated"] = False
-    st.session_state.pop("user", None)
-    st.session_state.pop("upload_df", None)
-    st.session_state.pop("mon_recs", None)
-    st.session_state.pop("ai_chat_history", None)
+    keys_to_clear = [
+        "user", "upload_df", "upload_name", "mon_recs",
+        "ai_chat_history", "pending_prompt",
+        "live_df", "live_i", "live_playing", "live_sig", "live_committed_sig",
+        "pump_override", "pump_was_on",
+        "fc_step", "fc_committed_sig", "fc_series", "fc_vis_mode", "fc_chart_mode", "fc_show_actual",
+        "cnn_committed_sig", "dash_applied_sig",
+    ]
+    for k in keys_to_clear:
+        st.session_state.pop(k, None)
     st.rerun()
 
 
@@ -458,12 +525,25 @@ def render_auth_page():
                 btn_login = st.form_submit_button("Masuk ke Sistem", type="primary", use_container_width=True)
 
                 if btn_login:
-                    success, user_data, msg = authenticate(username_in, password_in)
-                    if success:
-                        st.success(f"Selamat datang kembali, {user_data['full_name']}!")
-                        login_user(user_data)
+                    now_ts = time.time()
+                    lock_until = float(st.session_state.get("auth_lock_until", 0.0))
+                    if now_ts < lock_until:
+                        rem = int(lock_until - now_ts) + 1
+                        st.error(f"Terlalu banyak percobaan login gagal. Silakan tunggu {rem} detik sebelum mencoba lagi.")
                     else:
-                        st.error(msg)
+                        success, user_data, msg = authenticate(username_in, password_in)
+                        if success:
+                            st.success(f"Selamat datang kembali, {user_data['full_name']}!")
+                            login_user(user_data)
+                        else:
+                            attempts = int(st.session_state.get("auth_failed_attempts", 0)) + 1
+                            st.session_state["auth_failed_attempts"] = attempts
+                            if attempts >= MAX_LOGIN_ATTEMPTS:
+                                st.session_state["auth_lock_until"] = now_ts + LOGIN_COOLDOWN_SEC
+                                st.session_state["auth_failed_attempts"] = 0
+                                st.error(f"Terlalu banyak percobaan gagal ({MAX_LOGIN_ATTEMPTS}×). Akun dikunci sementara selama {LOGIN_COOLDOWN_SEC} detik.")
+                            else:
+                                st.error(msg)
 
             # DIVIDER
             st.markdown(
@@ -625,6 +705,9 @@ def render_sidebar_user_profile():
         f'</div>',
         unsafe_allow_html=True
     )
+
+    if role == "Administrator" and is_using_default_admin_password():
+        st.sidebar.caption("Keamanan: Atur ADMIN_PASSWORD di Secrets untuk mengganti sandi demo.")
 
     if st.sidebar.button("Keluar Akun", key="btn_logout", use_container_width=True):
         logout()
