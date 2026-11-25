@@ -1139,92 +1139,95 @@ def page_forecast():
 # ================================================================= CNN & foto
 def photo_panel(m, img, key, sensor_row=None):
     """Analisis satu foto: CNN + analisis visual daun. Mengembalikan (cnn, green)."""
-    with st.expander("Pengaturan Kalibrasi Ukuran Daun (Otomatis Sesuai Standar Morfologi Pakcoy)", expanded=False):
+    with st.expander("Pengaturan Kalibrasi Ukuran Daun (Estimasi Otomatis / Kalibrasi Skala)", expanded=False):
         st.caption(
-            "Sistem secara otomatis mengkalibrasi **panjang daun (`cm`)**, **lebar daun (`cm`)**, **luas helaian daun (`cm²`)**, "
-            "dan **diameter tajuk rumpun (`cm`)** sesuai standar morfologi tanaman pakcoy asli (*Brassica rapa* subsp. *chinensis*) pada setiap fase. "
-            "Jika Anda memotret dengan alat ukur pembanding, Anda juga dapat memilih kalibrasi manual di bawah ini:"
+            "Pada mode otomatis, sistem menghitung **estimasi morfologi daun (`cm`, `cm²`)** berdasarkan rentang fase pertumbuhan pakcoy "
+            "(*Brassica rapa* subsp. *chinensis*) dan proporsi tutupan hijau kanopi (bukan pengukuran mistar langsung). "
+            "Untuk pengukuran fisik aktual, gunakan opsi kalibrasi skala (`px/cm`) bersama objek pembanding pada foto:"
         )
         c_mode, c_val = st.columns([1.2, 1])
         with c_mode:
             calib_choice = st.radio(
                 "Metode Penentuan Ukuran Daun:",
-                ["Otomatis (Standar Morfologi Pakcoy Asli)", "Berdasarkan Diameter Netpot (cm)", "Manual (Piksel per cm)"],
+                ["Otomatis (Estimasi Morfologi per Fase)", "Berdasarkan Diameter Netpot (cm)", "Manual (Piksel per cm)"],
                 key=f"{key}_calib_choice"
             )
         scale = 0.0
         with c_val:
             if calib_choice == "Berdasarkan Diameter Netpot (cm)":
-                netpot_dia = st.number_input("Diameter netpot hidroponik (cm)", min_value=1.0, max_value=25.0, value=5.0, step=0.5, key=f"{key}_netpot_dia", help="Netpot hidroponik standar berdiameter 5 cm.")
+                netpot_dia = st.number_input("Diameter netpot hidroponik (cm)", min_value=1.0, max_value=25.0, value=5.0, step=0.5, key=f"{key}_netpot_dia", help="Netpot hidroponik standar berdiameter 5 cm (asumsi lebar netpot ≈ 28% lebar bingkai foto).")
                 scale = float(img.width * 0.28 / netpot_dia)
-                st.caption(f"Skala terhitung: **{scale:.1f} px/cm**")
+                st.caption(f"Skala estimasi netpot: **{scale:.1f} px/cm** (asumsi proporsi 28% bingkai)")
             elif calib_choice == "Manual (Piksel per cm)":
                 scale = st.number_input("Skala manual (px/cm)", min_value=1.0, max_value=300.0, value=45.0, step=1.0, key=f"{key}_manual_scale")
             else:
-                st.info("Mode Standar Pakcoy Aktif: Ukuran daun dihitung dalam satuan **cm**, **cm²**, dan **SPAD** sesuai fase pertumbuhan.")
+                st.info("Mode Estimasi Otomatis aktif: ukuran daun & proksi SPAD dihitung sebagai estimasi visual berdasarkan fase CNN dan analisis warna HSV.")
 
     g = utils.green_analysis(img, scale)
     is_plant, plant_reason, _ = utils.validate_plant_image(img, g)
     c1, c2 = st.columns(2)
     c1.image(img, caption="Foto Asli yang Diunggah")
-    c2.image(g["overlay"], caption="Deteksi Area Daun Hijau (Latar Belakang Digelapkan Otomatis)")
+    c2.image(g["overlay"], caption="Deteksi Area Daun Hijau (Segmentasi HSV)")
     cnn = None
     idx = 0.0
     if m.get("cnn") is not None:
         names = cnn_names(m)
         p = predict_image(m, img)
+        raw_k = int(p.argmax())
 
         if not is_plant:
-            idx_bukan = names.index("bukan_pakcoy") if "bukan_pakcoy" in names else 0
-            p_adj = np.zeros_like(p)
-            p_adj[idx_bukan] = 0.99
-            others = [i for i in range(len(names)) if i != idx_bukan]
-            for i in others:
-                p_adj[i] = 0.01 / max(1, len(others))
-            p = p_adj
-            k = idx_bukan
-        else:
-            k = int(p.argmax())
-
-        cnn = (names[k], float(p[k]), p, names)
-        idx = utils.readiness_index(p, names)
-        if names[k] == "bukan_pakcoy":
+            # Transparan secara ilmiah: jangan menimpa vektor softmax CNN dengan nilai buatan 99%.
+            # Tandai keputusan akhir sebagai ditolak oleh pra-validasi HSV dan tampilkan probabilitas mentah CNN apa adanya.
+            cnn = ("bukan_pakcoy", float(p[raw_k]), p, names)
+            idx = 0.0
             ui.kpi_cards([
-                dict(icon="alert-triangle", label="Hasil Pemeriksaan Foto", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#dc2626")),
-                dict(icon="sparkles", label="Tingkat Keyakinan AI", value=f"{p[k]:.0%}", color="#dc2626"),
-                dict(icon="x-circle", label="Status Kesiapan Panen", value="Bukan Pakcoy", color="#dc2626", sub="Silakan unggah foto daun pakcoy"),
+                dict(icon="alert-triangle", label="Pra-Validasi Citra (HSV)", value="Bukan Daun", color="#dc2626", sub="Ditolak sebelum tahap panen"),
+                dict(icon="cpu", label="Prediksi Mentah CNN", value=f"{label(names[raw_k])} ({p[raw_k]:.0%})", color="#94a3b8", sub="Output softmax asli tanpa modifikasi"),
+                dict(icon="x-circle", label="Status Kesiapan Panen", value="Tidak Berlaku", color="#dc2626", sub="Unggah foto daun pakcoy yang jelas"),
             ], cols=3)
-            show(charts.prob_bar(p, names), f"{key}_prob")
-            alasan_detail = f" — {plant_reason}" if not is_plant else ""
-            ui.banner("danger", f"Foto terdeteksi sebagai BUKAN TANAMAN PAKCOY{alasan_detail} (Keyakinan AI: {p[k]:.0%}). "
-                                f"Silakan unggah foto tanaman pakcoy asli dari sudut atas.")
+            show(charts.prob_bar(p, names, title="Probabilitas Mentah Model CNN (Sebelum Pra-Validasi HSV)"), f"{key}_prob")
+            ui.banner("danger", f"Foto ditolak oleh pra-validasi citra (HSV): {plant_reason} "
+                                f"Silakan unggah foto tanaman pakcoy asli dari sudut atas dengan pencahayaan cukup.")
         else:
-            ui.kpi_cards([
-                dict(icon="cpu", label="Fase Tanaman (Dari Foto)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#15803d"), sub="Deteksi visual daun (CNN)"),
-                dict(icon="sparkles", label="Tingkat Keyakinan AI", value=f"{p[k]:.0%}", color="#34d399", sub="Ketepatan pengenalan foto"),
-                dict(icon="layers", label="Skor Kesiapan Panen", value=f"{idx:.0f} / 100", color="#facc15", sub="Skor ≥ 85 siap dipanen"),
-            ], cols=3)
-            g1, g2 = st.columns(2)
-            show(charts.prob_bar(p, names), f"{key}_prob", g1)
-            show(charts.gauge(idx, "Skor Kesiapan Panen dari Foto (0–100%)", (50, 90)), f"{key}_gauge", g2)
-            if p[k] < 0.6:
-                ui.banner("warn", "Tingkat keyakinan AI terhadap foto ini cukup rendah. Coba ambil ulang foto dari atas dengan cahaya yang lebih terang.")
+            k = raw_k
+            cnn = (names[k], float(p[k]), p, names)
+            idx = utils.readiness_index(p, names)
+            if names[k] == "bukan_pakcoy":
+                ui.kpi_cards([
+                    dict(icon="alert-triangle", label="Hasil Pemeriksaan Foto", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#dc2626")),
+                    dict(icon="sparkles", label="Tingkat Keyakinan AI", value=f"{p[k]:.0%}", color="#dc2626"),
+                    dict(icon="x-circle", label="Status Kesiapan Panen", value="Bukan Pakcoy", color="#dc2626", sub="Silakan unggah foto daun pakcoy"),
+                ], cols=3)
+                show(charts.prob_bar(p, names), f"{key}_prob")
+                ui.banner("danger", f"Model CNN mendeteksi foto sebagai BUKAN TANAMAN PAKCOY (Keyakinan AI: {p[k]:.0%}). "
+                                    f"Silakan unggah foto tanaman pakcoy asli dari sudut atas.")
+            else:
+                ui.kpi_cards([
+                    dict(icon="cpu", label="Fase Tanaman (Dari Foto)", value=label(names[k]), color=charts.STAGE_COLORS.get(names[k], "#15803d"), sub="Deteksi visual daun (CNN)"),
+                    dict(icon="sparkles", label="Tingkat Keyakinan AI", value=f"{p[k]:.0%}", color="#34d399", sub="Ketepatan pengenalan foto"),
+                    dict(icon="layers", label="Skor Kesiapan Panen", value=f"{idx:.0f} / 100", color="#facc15", sub="Skor ≥ 85 siap dipanen"),
+                ], cols=3)
+                g1, g2 = st.columns(2)
+                show(charts.prob_bar(p, names), f"{key}_prob", g1)
+                show(charts.gauge(idx, "Skor Kesiapan Panen dari Foto (0–100%)", (50, 90)), f"{key}_gauge", g2)
+                if p[k] < 0.6:
+                    ui.banner("warn", "Tingkat keyakinan AI terhadap foto ini cukup rendah. Coba ambil ulang foto dari atas dengan cahaya yang lebih terang.")
     else:
-        ui.banner("warn", "Model CNN belum tersedia. Menampilkan hasil pengukuran visual daun.")
+        ui.banner("warn", "Model CNN belum tersedia. Menampilkan hasil analisis warna daun (HSV).")
 
     if not is_plant or (cnn and cnn[0] == "bukan_pakcoy"):
         cards = [
             dict(icon="alert-triangle", label="Validasi Objek Foto", value="Bukan Tanaman", color="#dc2626",
                  sub="Objek non-tanaman terdeteksi"),
-            dict(icon="maximize", label="Panjang Helaian Daun", value="Tidak Berlaku", color="#94a3b8",
+            dict(icon="maximize", label="Estimasi Panjang Daun", value="Tidak Berlaku", color="#94a3b8",
                  sub="Bukan tanaman pakcoy"),
-            dict(icon="maximize", label="Lebar Helaian Daun", value="Tidak Berlaku", color="#94a3b8",
+            dict(icon="maximize", label="Estimasi Lebar Daun", value="Tidak Berlaku", color="#94a3b8",
                  sub="Bukan tanaman pakcoy"),
-            dict(icon="maximize", label="Luas Helaian Daun", value="Tidak Berlaku", color="#94a3b8",
+            dict(icon="maximize", label="Estimasi Luas Daun", value="Tidak Berlaku", color="#94a3b8",
                  sub="Bukan tanaman pakcoy"),
-            dict(icon="layers", label="Diameter Tajuk Rumpun", value="Tidak Terdeteksi", color="#94a3b8",
+            dict(icon="layers", label="Estimasi Diameter Tajuk", value="Tidak Terdeteksi", color="#94a3b8",
                  sub="Tidak ditemukan rumpun pakcoy"),
-            dict(icon="sprout", label="Kesehatan Klorofil Daun", value="Tidak Berlaku", color="#94a3b8",
+            dict(icon="sprout", label="Proksi Klorofil Daun", value="Tidak Berlaku", color="#94a3b8",
                  sub="Bukan daun pakcoy"),
         ]
         ui.kpi_cards(cards, cols=3)
@@ -1234,12 +1237,18 @@ def photo_panel(m, img, key, sensor_row=None):
     conf_val = cnn[1] if cnn else 0.85
     metrics = ui.compute_pakcoy_leaf_metrics(g, stage_key=detected_stage, manual_scale=scale)
 
-    # Simpan kembali ke dict g agar laporan unduhan (.md) juga memuat angka morfologi pakcoy yang akurat
+    # Simpan kembali ke dict g agar laporan unduhan (.md) juga memuat angka estimasi morfologi pakcoy
     g["width_cm"] = metrics["leaf_wid_cm"]
     g["height_cm"] = metrics["leaf_len_cm"]
     g["area_cm2"] = metrics["leaf_area_cm2"]
 
-    prefix_est = "± " if scale <= 0 else ""
+    is_manual_calib = scale > 0
+    prefix_est = "" if is_manual_calib else "± "
+    sec_title = (
+        "Pengukuran Morfologi Daun (Terkalibrasi Skala) &amp; Kesehatan Warna"
+        if is_manual_calib else
+        "Estimasi Morfologi Daun (Berbasis Fase &amp; Kanopi) &amp; Kesehatan Warna"
+    )
 
     if g['yellow_pct'] < 2.0:
         yellow_sub = "Daun sangat sehat & segar"
@@ -1251,18 +1260,18 @@ def photo_panel(m, img, key, sensor_row=None):
         yellow_sub = "Perhatian · gejala klorosis daun"
         yellow_col = "#f87171"
 
-    st.markdown('<div class="section-title">Hasil Pengukuran Fisik & Kesehatan Daun Pakcoy</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{sec_title}</div>', unsafe_allow_html=True)
     cards = [
-        dict(icon="maximize", label="Panjang Helaian Daun", value=f"{prefix_est}{metrics['leaf_len_cm']:.1f} cm", color="#15803d",
-             sub=f"Standar fase ini: {metrics['len_std_str']}"),
-        dict(icon="maximize", label="Lebar Helaian Daun", value=f"{prefix_est}{metrics['leaf_wid_cm']:.1f} cm", color="#38bdf8",
-             sub=f"Standar fase ini: {metrics['wid_std_str']}"),
-        dict(icon="layers", label="Luas Helaian Daun", value=f"{prefix_est}{metrics['leaf_area_cm2']:.1f} cm²", color="#fb923c",
-             sub=f"Standar fase ini: {metrics['area_std_str']}"),
-        dict(icon="maximize", label="Diameter Tajuk Rumpun", value=f"{prefix_est}{metrics['canopy_dia_cm']:.1f} cm", color="#a78bfa",
-             sub=f"Standar tajuk: {metrics['canopy_std_str']}"),
-        dict(icon="sparkles", label="Indeks Klorofil & Kerapatan", value=f"{metrics['spad_val']:.1f} SPAD · {g['compactness']:.0%}", color="#34d399",
-             sub=f"Kepekatan hijau {g['greenness']:.0f}% · Tutupan {g['coverage_pct']:.1f}%"),
+        dict(icon="maximize", label="Estimasi Panjang Daun" if not is_manual_calib else "Panjang Helaian Daun", value=f"{prefix_est}{metrics['leaf_len_cm']:.1f} cm", color="#15803d",
+             sub=f"Referensi fase: {metrics['len_std_str']}"),
+        dict(icon="maximize", label="Estimasi Lebar Daun" if not is_manual_calib else "Lebar Helaian Daun", value=f"{prefix_est}{metrics['leaf_wid_cm']:.1f} cm", color="#38bdf8",
+             sub=f"Referensi fase: {metrics['wid_std_str']}"),
+        dict(icon="layers", label="Estimasi Luas Daun" if not is_manual_calib else "Luas Helaian Daun", value=f"{prefix_est}{metrics['leaf_area_cm2']:.1f} cm²", color="#fb923c",
+             sub=f"Referensi fase: {metrics['area_std_str']}"),
+        dict(icon="maximize", label="Estimasi Diameter Tajuk" if not is_manual_calib else "Diameter Tajuk Rumpun", value=f"{prefix_est}{metrics['canopy_dia_cm']:.1f} cm", color="#a78bfa",
+             sub=f"Referensi tajuk: {metrics['canopy_std_str']}"),
+        dict(icon="sparkles", label="Proksi SPAD (HSV) & Kerapatan", value=f"±{metrics['spad_val']:.1f} SPAD · {g['compactness']:.0%}", color="#34d399",
+             sub=f"Estimasi visual (non-alat) · Hijau {g['greenness']:.0f}%"),
         dict(icon="sprout", label="Persentase Daun Menguning", value=f"{g['yellow_pct']:.1f}%", color=yellow_col,
              sub=yellow_sub),
     ]
@@ -1279,13 +1288,12 @@ def photo_panel(m, img, key, sensor_row=None):
         sensor_row=sensor_row,
     )
 
-    with st.expander("Penjelasan Satuan & Standar Ukuran Daun Pakcoy Asli"):
+    with st.expander("Metodologi & Keterbatasan Estimasi Ukuran Daun dan Proksi SPAD"):
         st.markdown(
-            "- **Panjang Helaian Daun (`cm`):** Diukur dari pangkal tangkai putih (*petiole*) hingga ujung helai daun (*lamina*). Ukuran pakcoy asli: **6,5–11,8 cm** (*Masa Pertumbuhan*), **12,5–17,5 cm** (*Mendekati Panen*), dan **18,0–23,5 cm** (*Siap Panen*).\n"
-            "- **Lebar Helaian Daun (`cm`):** Diukur pada bagian terlebar helai daun hijau. Ukuran pakcoy asli: **4,0–7,2 cm** (*Masa Pertumbuhan*), **7,5–10,8 cm** (*Mendekati Panen*), dan **11,0–14,5 cm** (*Siap Panen*).\n"
-            "- **Luas Helaian Daun (`cm²`):** Dihitung menggunakan rumus morfometri hortikultura $LA = P \\times L \\times k$ ($k \\approx 0{,}68 - 0{,}72$) dalam satuan **centimeter persegi (`cm²`)**.\n"
-            "- **Diameter Tajuk Rumpun (`cm`):** Lebar bentang mekarnya roset daun pakcoy dilihat dari sudut atas (**9,5–26,5 cm**).\n"
-            "- **Indeks Klorofil (`SPAD`) & Persentase Menguning (`%`):** Satuan standar agronomi (**SPAD**) untuk mengukur kepekatan zat hijau daun, sedangkan persentase menguning mendeteksi gejala klorosis atau kekurangan nutrisi."
+            "- **Mode Estimasi Otomatis (`cm`, `cm²`):** Panjang daun, lebar daun, luas daun ($LA = P \\times L \\times k$, $k \\in [0{,}68; 0{,}72]$), dan diameter tajuk diestimasi secara heuristik dari rentang morfologi standar fase prediksi CNN yang dikombinasikan dengan proporsi tutupan hijau & kerapatan kanopi pada foto. Nilai ini bersifat **estimasi visual**, bukan pengukuran mistar langsung.\n"
+            "- **Mode Kalibrasi Manual (`px/cm`):** Menghitung dimensi fisik dari piksel bounding box daun menggunakan skala `px/cm` yang dimasukkan pengguna bersama benda pembanding.\n"
+            "- **Proksi SPAD (HSV):** Dihitung secara heuristik dari tingkat kepekatan hijau (saturasi HSV) dan persentase kuning daun. Angka ini adalah **proksi kehijauan visual**, bukan pembacaan terkalibrasi dari alat klorofil meter SPAD-502.\n"
+            "- **Referensi Morfologi Pakcoy:** *Masa Pertumbuhan* (panjang 6,5–11,8 cm; lebar 4,0–7,2 cm), *Mendekati Panen* (12,5–17,5 cm; 7,5–10,8 cm), dan *Siap Panen* (18,0–23,5 cm; 11,0–14,5 cm)."
         )
     return cnn, g
 
@@ -1304,9 +1312,19 @@ def get_image(key):
     if getattr(f, "size", 0) > max_bytes:
         ui.banner("warn", f"Ukuran file foto terlalu besar ({f.size / (1024 * 1024):.1f} MB). Batas maksimal ukuran foto adalah 10 MB. Silakan pilih foto dengan ukuran lebih kecil.")
         return None, None
+    try:
+        Image.MAX_IMAGE_PIXELS = 40_000_000
+        raw_img = Image.open(f)
+        img = ImageOps.exif_transpose(raw_img).convert("RGB")
+        if img.width < 32 or img.height < 32:
+            ui.banner("warn", f"Resolusi foto terlalu kecil ({img.width}×{img.height} px). Gunakan foto minimal 32×32 piksel.")
+            return None, None
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, Exception) as exc:
+        ui.banner("danger", f"File foto tidak valid atau rusak sehingga tidak dapat dibuka ({type(exc).__name__}). Silakan unggah file JPG/PNG yang sah.")
+        return None, None
     file_id = getattr(f, "file_id", None) or getattr(f, "id", None) or getattr(f, "name", "cam")
     sig = (getattr(f, "name", "cam"), getattr(f, "size", 0), str(file_id))
-    return Image.open(f), sig
+    return img, sig
 
 
 def page_cnn():

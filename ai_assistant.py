@@ -1,6 +1,7 @@
 """Modul Halaman AI Assistant untuk Smart Farming Pakcoy.
 Terhubung ke Gemini API dengan SDK resmi google-genai dan antarmuka chat berbingkai profesional.
 """
+import hashlib
 import os
 import re
 import time
@@ -13,14 +14,9 @@ import ui
 
 logger = logging.getLogger("ai_assistant")
 
-GEMINI_MODEL = "gemini-3.8-flash"
-GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite"
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_BACKUP_MODEL = "gemini-2.5-flash-lite"
 DEPRECATED_MODELS = {
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-exp",
-    "gemini-2.0-pro-exp",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "gemini-1.0-pro",
@@ -32,93 +28,63 @@ SYSTEM_KNOWLEDGE = """
 Berikut adalah dokumentasi dan pengetahuan teknis resmi mengenai aplikasi "Smart Farming Pakcoy":
 
 1. TUJUAN SISTEM
-- Smart Farming Pakcoy adalah sistem berbasis web (Streamlit) yang mengintegrasikan model kecerdasan buatan (LSTM dan CNN) untuk mendukung budidaya tanaman pakcoy.
-- Fungsi utama: klasifikasi tahap pertumbuhan, estimasi tingkat kematangan (maturity level), pemantauan sensor kelembapan tanah dan suhu lingkungan, kontrol otomatis pompa air penyiraman, forecasting kondisi 4 hari ke depan, serta analisis citra daun untuk menentukan kesiapan panen.
+- Smart Farming Pakcoy adalah sistem berbasis web (Streamlit) yang mengintegrasikan model kecerdasan buatan (LSTM dan CNN) untuk mendukung pemantauan budidaya tanaman pakcoy.
+- Fungsi utama: pemantauan sensor kelembapan tanah dan suhu lingkungan (beserta simulasi live & kontrol pompa berbasis histeresis), klasifikasi fase pertumbuhan, prakiraan kondisi 4 hari ke depan (kelembapan, suhu, tingkat kematangan), analisis citra daun (CNN MobileNetV2 + segmentasi HSV), riwayat perkembangan resolusi tinggi, dan konsultasi agronomi melalui Asisten Kebun AI.
 
-2. STRUKTUR DAN CARA KERJA 7 HALAMAN UTAMA
-1. Dashboard:
-   - Menampilkan kartu KPI (Total Data, Rata-rata Kelembapan Tanah, Rata-rata Suhu, Rata-rata Kematangan, Umur Tanaman 1–30 hari).
-   - Panel monitoring sensor live otomatis (disimulasikan berputar per 1.5 detik) yang memvisualisasikan data sensor bergerak, status kondisi tanah, rekomendasi irigasi, dan status pompa.
-   - Grafik donut distribusi kondisi tanah dan bar chart tahap pertumbuhan.
-2. Eksplorasi Data:
-   - Analisis statistik mendalam dataset pakcoy (Siklus perkembangan tanaman pakcoy 30 siklus dan Data asli 30 hari).
-   - Scatter plot hubungan kelembapan tanah vs suhu dengan garis batas histeresis kering (<55%) dan basah (>=76%).
-   - Kurva akumulasi kematangan kumulatif dan tabel cuplikan data dengan fitur unduh CSV.
-3. Monitoring Realtime:
-   - Monitoring realtime pembacaan sensor siklus perkembangan tanaman pakcoy dengan kontrol kecepatan (1x, 2x, 5x).
-   - Otomatisasi pompa berbasis logika histeresis: Pompa NYALA jika kelembapan < 55%, dan MATI jika kelembapan >= 76%. Jika sedang menyiram dan kelembapan di antara 55-60%, pompa tetap aktif dalam fase pemulihan.
-   - Regresi linear tren sensor jangka pendek ke depan dan log riwayat pompa.
-4. Model LSTM:
-   - Evaluasi performa model klasifikasi LSTM (jendela 6 waktu pembacaan sensor).
-   - Confusion matrix dan metrik klasifikasi (precision, recall, f1-score) pada siklus perkembangan vs data asli.
-   - Evaluasi model forecast LSTM (MAE kelembapan tanah, suhu, dan maturity).
-   - Pengujian inferensi manual interaktif menggunakan 6 data pembacaan sensor terakhir.
-5. Prediksi 4 Hari:
-   - Forecasting multi-langkah ke depan (12 langkah waktu pembacaan = 4 hari x 3 waktu: 08:00, 12:00, 16:00).
-   - Visualisasi tren proyeksi kelembapan, suhu, dan tingkat kematangan (0-100%).
-   - Tabel proyeksi lengkap beserta estimasi panen ideal.
-6. Model CNN (Scan Foto):
-   - Klasifikasi tahap pertumbuhan berdasarkan foto tanaman pakcoy menggunakan arsitektur MobileNetV2 (resolusi 224x224 RGB).
-   - Segmentasi warna HSV untuk mengukur tutupan daun hijau (%), kerapatan rumpun daun, estimasi bentang fisik daun dalam centimeter (cm), dan persentase daun kekuningan (yellowing %).
-   - Indeks kesiapan panen (0-100%) dan saran agronomi berdasarkan fase pertumbuhan.
-7. Scan Gabungan:
-   - Analisis multimodal terpadu menggabungkan foto kamera (CNN) dan pembacaan sensor tanah/suhu terakhir (LSTM).
-   - Indeks kesiapan panen kombinasi, saran agronomi, dan fitur unduh laporan perkembangan lengkap dalam format Markdown (.md).
+2. STRUKTUR DAN CARA KERJA 5 HALAMAN UTAMA
+1. Dashboard Utama:
+   - Pemilihan siklus tanam (Siklus 1–30, Semua Siklus, atau Dataset Unggahan Excel).
+   - 6 kartu KPI dinamis yang sinkron dengan siklus terpilih (Total Data, Frekuensi Pengukuran, Rentang Umur, Rata-rata Kelembapan, Rata-rata Suhu, Kematangan Puncak).
+   - Grafik distribusi kondisi kelembapan tanah (donut), jumlah data per fase (bar), kurva kematangan, dan tabel pengukuran lengkap.
+   - Konsol Live Telemetry interaktif (pemutaran ulang sensor) dengan klasifikasi fase LSTM, kontrol pompa otomatis berbasis histeresis (NYALA < 55%, fase pemulihan 55–60%, MATI >= 76%) serta kontrol manual Hidup/Mati/Otomatis.
+2. Prakiraan 4 Hari (LSTM):
+   - Prakiraan multi-langkah ke depan (12 langkah = 4 hari × 3 sesi: 08:00, 12:00, 16:00) menggunakan 12 pembacaan sensor terakhir.
+   - Dilengkapi panel kontrol (pilih siklus, slider titik awal, preset fase Hari ke-7/17/25) dan 4 tab: Ringkasan (visual tanaman + 4 kartu harian + expander estimasi daun/tajuk), Grafik Tren (mode Rata-rata Harian & Per Sesi, area zona ideal, toggle pembanding data asli), Tabel Data (ringkasan harian, rincian per sesi, unduh CSV), dan Rekomendasi Antisipasi.
+3. Analisis Tanaman (CNN):
+   - Klasifikasi 4 kelas citra menggunakan MobileNetV2 (224×224 RGB): `bukan_pakcoy`, `masa_pertumbuhan`, `mendekati_panen`, `siap_panen`.
+   - Pra-validasi citra daun berbasis segmentasi warna HSV (transparan tanpa memanipulasi output softmax CNN), indeks kesiapan panen (0–100%), estimasi morfologi daun (mode otomatis heuristik per fase atau kalibrasi skala manual px/cm), proksi klorofil visual (HSV), dan tab evaluasi akurasi/confusion matrix model CNN.
+4. History Perkembangan:
+   - Analisis riwayat perkembangan resolusi tinggi 15× pengecekan per hari (06:00–20:00) dari `history_perkembangan_pakcoy_1400.csv` (1.400 catatan mencakup Siklus 1–3 penuh Hari 1–30 dan awal Siklus 4).
+   - Menyediakan filter dinamis, grafik kurva kematangan, profil 15 jam harian, tabel 1.400 data + unduh CSV, tab dataset asli mentah (1.140 baris dari Excel), dan tabel panduan standar agronomi 30 hari beserta pemetaan ke kelas model LSTM.
+5. Asisten Kebun AI:
+   - Antarmuka tanya-jawab agronomi pakcoy dan panduan penggunaan sistem berbasis Google Gemini API.
 
 3. STRUKTUR DATASET
-- Umur tanaman pakcoy berlangsung selama 30 hari (Hari ke-1 s.d. Hari ke-30, dengan masa panen optimal di Hari ke-30).
-- Kolom wajib: Day (Hari ke-1 s.d. 30), Time (08:00, 12:00, 16:00), Soil Moisture (%), Temperature (°C), Soil Condition (Wet, Optimal, Dry), Ground Truth Maturity Level (%), Ground Truth Criteria.
+- Umur siklus tanaman pakcoy: 30 hari (Hari ke-1 s.d. Hari ke-30, panen optimal sekitar Hari ke-30).
+- Kolom wajib dataset unggahan Excel (.xlsx): Day, Time, Soil Moisture (%), Temperature (°C), Soil Condition, Ground Truth Maturity Level (%), Ground Truth Criteria.
 - Data bawaan aplikasi:
-  - data_training_30hari.csv: 30 siklus perkembangan tanaman pakcoy dari masa pertumbuhan bibit hingga panen 30 hari (2.700 baris data).
-  - data_asli_30hari.csv: 1 siklus budidaya lapangan nyata selama 30 hari (90 baris data, 3 kali pembacaan per hari).
-- 3 Tahap pertumbuhan utama:
-  1. masa_pertumbuhan: fase bibit hingga vegetatif awal, daun kecil hingga mulai melebar, maturity < 66.5%.
-  2. mendekati_panen: roset mulai memadat, tangkai daun menebal, maturity 66.5% - 89.0%.
-  3. siap_panen: tanaman rimbun, daun penuh dan tangkai tebal, panen di hari ke-30, maturity >= 89.0%.
+  - `data_training_30hari.csv`: 30 siklus budidaya (2.700 baris; 90 pembacaan/siklus, 3×/hari pada 08:00, 12:00, 16:00; split per siklus: 20 train / 5 val / 5 test).
+  - `data_asli_30hari.csv`: 1 siklus lapangan selama 30 hari (90 baris, 3×/hari).
+  - `history_perkembangan_pakcoy_1400.csv`: 1.400 baris pengamatan resolusi tinggi 15×/hari (06:00–20:00), mencakup Siklus 1–3 penuh (450 baris/siklus) dan awal Siklus 4 (50 baris).
+  - `dataset_asli_mentah.csv` / `dataset asli/new Dataset_Pakcoy.xlsx`: 1.140 baris data mentah sumber (Hari 1–380, 3×/hari) sebelum pembersihan dan pembatasan siklus 30 hari.
+- 3 Kelas pertumbuhan model LSTM:
+  1. `masa_pertumbuhan`: fase awal & vegetatif, maturity < 66.5%.
+  2. `mendekati_panen`: roset mulai memadat & tangkai menebal, maturity 66.5% – 89.0%.
+  3. `siap_panen`: tanaman rimbun siap panen, maturity >= 89.0%.
 
 4. ARSITEKTUR MODEL & METRIK EVALUASI
-- LSTM Klasifikasi (model_lstm_klasifikasi.keras):
-  - Input: window 6 time steps x 5 fitur (kelembapan tanah dinormalisasi min-max, suhu dinormalisasi min-max, 3 one-hot jam 08:00, 12:00, 16:00).
-  - Output: 3 kelas probabilitas tahap pertumbuhan.
-  - Akurasi pada siklus perkembangan: 86.8% (0.8678).
-  - Akurasi pada data asli: 73.0% (0.7304).
-- LSTM Forecast (model_lstm_forecast.keras):
-  - Input: window 12 time steps x 5 fitur.
-  - Output: 12 time steps ke depan x 3 variabel (kelembapan, suhu, maturity/100).
-  - MAE pada siklus perkembangan: kelembapan 1.49%, suhu 0.72°C, maturity 2.02%.
-  - MAE pada data asli: kelembapan 0.59%, suhu 0.10°C, maturity 25.36%.
-- CNN MobileNetV2 (model_cnn.keras):
-  - Input: gambar 224x224 piksel RGB.
-  - Output: 4 kelas Softmax ('bukan_pakcoy', 'masa_pertumbuhan', 'mendekati_panen', 'siap_panen').
-  - Akurasi uji: 88.5% pada 26 citra uji dengan presisi 100% untuk kelas bukan_pakcoy.
+- LSTM Klasifikasi (`model_lstm_klasifikasi.keras`, 31.491 parameter):
+  - Input: window 6 time steps × 5 fitur (kelembapan & suhu normalisasi min-max data latih + one-hot jam 08:00/12:00/16:00).
+  - Output: 3 kelas Softmax (`masa_pertumbuhan`, `mendekati_panen`, `siap_panen`).
+- LSTM Forecast (`model_lstm_forecast.keras`, 75.204 parameter):
+  - Input: window 12 time steps × 5 fitur.
+  - Output: 12 time steps ke depan × 3 target (kelembapan, suhu, maturity/100).
+- CNN MobileNetV2 (`model_cnn.keras`, 2.263.108 parameter):
+  - Input: gambar 224×224 RGB; Output: 4 kelas Softmax (`bukan_pakcoy`, `masa_pertumbuhan`, `mendekati_panen`, `siap_panen`).
+  - Akurasi uji pada 26 citra uji: 88.5% (23/26 benar, Macro-F1 87.9%).
 
-5. ARTI OUTPUT & AMBANG BATAS
-- Tingkat Kematangan Tanaman (%) (Maturity):
-  - Merupakan indeks persentase (0–100%) perkembangan fisiologis tanaman pakcoy dari fase bibit hingga siap panen.
-  - Masa Pertumbuhan: < 66.5% (fase bibit hingga vegetatif awal).
-  - Mendekati Panen: 66.5% s/d 89.0% (roset mulai memadat, tangkai menebal).
-  - Siap Panen: >= 89.0% (tanaman rimbun sempurna, siap dipanen pada umur sekitar 30 hari).
-- Batas kelembapan tanah (aturan histeresis pompa otomatis):
-  - Dry (Kering): < 55.0% (sistem otomatis MENYALAKAN pompa penyiraman air).
-  - Optimal (Ideal): 55.0% s/d 76.0%.
-  - Wet (Basah): >= 76.0% (sistem otomatis MEMATIKAN pompa penyiraman air).
-- Ambang batas kematangan tanaman (maturity thresholds) LSTM: [66.5%, 89.0%].
-- Indeks Kesiapan Panen CNN (0-100%): bukan_pakcoy = 0, masa_pertumbuhan = 0, mendekati_panen = 0.5, siap_panen = 1.0.
+5. AMBANG BATAS & STANDAR AGRONOMI PAKCOY
+- Kelembapan Tanah Ideal: 55% – 76% (`Optimal`). Kering `< 55%` (pompa NYALA), fase pemulihan histeresis `55% – 60%` (pompa tetap menyala sampai melewati batas pemulihan), Basah `>= 76%` (pompa MATI).
+- Suhu Udara Optimal: 22°C – 28°C (rentang toleransi 18°C – 30°C; peringatan terik > 30°C, sejuk < 18°C).
+- pH Tanah / Air Nutrisi: 6,0 – 7,0; Nutrisi AB Mix hidroponik: EC 1,5 – 2,5 mS/cm (TDS 1.050 – 1.400 ppm); Sinar matahari: 6–8 jam/hari.
+- Indeks Kesiapan Panen CNN (0–100%): `bukan_pakcoy` = 0, `masa_pertumbuhan` = 0, `mendekati_panen` = 0,5, `siap_panen` = 1,0.
 
-6. STANDAR AGRONOMI & LINGKUNGAN TUMBUH PAKCOY IDEAL
-- Kelembapan Tanah Ideal: 55% s.d. 76% (status Optimal). Bila kelembapan turun di bawah 55%, kondisi tanah dikategorikan Kering dan pompa air otomatis menyala. Pompa akan otomatis berhenti menyiram begitu kelembapan tanah mencapai atau melampaui 76%.
-- Suhu Udara & Lingkungan Ideal: 20°C s.d. 30°C (rentang paling optimal pada 22°C s.d. 28°C). Suhu di atas 32°C menyebabkan tanaman mengalami stres panas (daun cepat layu dan menguning), sedangkan suhu di bawah 15°C memperlambat laju fotosintesis dan pembentukan biomassa daun.
-- Derajat Keasaman (pH) Tanah / Air: 6,0 – 7,0 (netral hingga sedikit asam).
-- Kebutuhan Sinar Matahari: 6 – 8 jam sinar matahari penuh per hari (atau 12–14 jam lampu grow light pada sistem hidroponik dalam ruangan).
-- Nutrisi Hidroponik (AB Mix): EC 1,5 – 2,5 mS/cm atau TDS 1.050 – 1.400 PPM.
-- Masa Panen: Umur 25 hingga 30 hari setelah semai, saat tinggi tanaman berkisar 18–25 cm dan roset daun telah rimbun memadat.
-
-7. KETERBATASAN SISTEM (CATATAN KEJUJURAN)
-- Monitoring realtime pada website ini adalah pemutaran ulang siklus perkembangan sensor, bukan pembacaan perangkat keras langsung.
-- Data latih LSTM mencakup 30 siklus perkembangan pakcoy komprehensif, performa pada data asli (73%) lebih rendah daripada data multi-siklus (86.8%).
-- Model machine learning dilatih pada data dengan resolusi pembacaan waktu tertentu sehingga proyeksi masa depan bersifat estimasi.
-- Estimasi ukuran luas daun dalam cm² hanya valid jika foto memiliki benda pembanding dan skala piksel per cm diisi dengan benar.
-- Foto tanaman dan data sensor dalam demo tidak dijamin berasal dari tanaman fisik yang sama.
+6. KETERBATASAN SISTEM (CATATAN KEJUJURAN ILMIAH)
+- Konsol Live Telemetry memutar ulang data siklus tersimpan (simulasi), bukan koneksi perangkat keras sensor ESP32 langsung.
+- Estimasi ukuran daun (cm, cm²) pada mode otomatis bersifat heuristik berbasis fase CNN dan proporsi tutupan kanopi; pengukuran fisik aktual memerlukan kalibrasi skala (`px/cm`) bersama objek pembanding.
+- Nilai SPAD pada analisis foto merupakan proksi visual berbasis saturasi warna HSV, bukan pembacaan alat klorofil meter SPAD-502 terkalibrasi.
+- Jumlah citra uji CNN masih terbatas (26 gambar), sehingga satu kesalahan klasifikasi memengaruhi akurasi beberapa persen.
+- Foto tanaman dan data sensor tidak berasal dari tanaman fisik yang sama.
 """
 
 SYSTEM_INSTRUCTION = f"""
@@ -185,6 +151,21 @@ def parse_api_error(err: Exception, key_val: str = None) -> tuple[str, str]:
     return user_msg, tech_detail
 
 
+@st.cache_resource(show_spinner=False)
+def _cached_genai_client(_key_sig: str, api_key: str):
+    """Membuat dan menyimpan cache instance genai.Client agar tidak diinisialisasi ulang setiap rerun."""
+    return genai.Client(api_key=api_key)
+
+
+def _is_debug_enabled() -> bool:
+    if os.environ.get("AI_DEBUG") == "1":
+        return True
+    try:
+        return str(st.secrets.get("AI_DEBUG", "")) == "1"
+    except Exception:
+        return False
+
+
 def get_gemini_client():
     """Mengambil API key dan mengembalikan instance Client google-genai serta konfigurasi model."""
     key = None
@@ -225,7 +206,8 @@ def get_gemini_client():
         backup_model = GEMINI_BACKUP_MODEL
 
     try:
-        client = genai.Client(api_key=key)
+        key_sig = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+        client = _cached_genai_client(key_sig, key)
         return client, primary_model, backup_model, key
     except Exception as e:
         logger.error("Failed to initialize genai.Client: %s", redact_key(str(e), key))
@@ -384,7 +366,7 @@ def render_ai_assistant():
                     )
 
                     models_to_try = []
-                    for m_name in [primary_model, backup_model, "gemini-3.8-flash", "gemini-3.5-flash-lite"]:
+                    for m_name in [primary_model, backup_model, GEMINI_MODEL, GEMINI_BACKUP_MODEL]:
                         if m_name and m_name not in models_to_try:
                             models_to_try.append(m_name)
 
@@ -442,8 +424,8 @@ def render_ai_assistant():
                         st.session_state["ai_chat_history"].append({"role": "assistant", "text": full_reply})
                     elif error_caught:
                         user_msg, tech_detail = parse_api_error(error_caught, raw_key)
-                        st.markdown(f'<div class="chat-error-notice">{user_msg}</div>', unsafe_allow_html=True)
-                        if os.environ.get("AI_DEBUG") == "1" or st.secrets.get("AI_DEBUG") == "1":
+                        st.markdown(f'<div class="chat-error-notice">{ui._e(user_msg)}</div>', unsafe_allow_html=True)
+                        if _is_debug_enabled():
                             with st.expander("Detail teknis"):
                                 st.code(tech_detail)
                     else:

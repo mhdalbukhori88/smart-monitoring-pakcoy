@@ -4255,47 +4255,42 @@ def ai_plant_analysis_card(stage_key, stage_label, confidence, readiness_idx, me
     yellow_pct = float(g.get("yellow_pct") or 0.0)
     green_pct = float(g.get("greenness") or 0.0)
 
-    # Paragraf 1: Analisis Morfologi & Ukuran Fisik Daun Pakcoy Asli
+    # Paragraf 1: Estimasi Morfologi & Ukuran Daun Pakcoy
     p1 = (
         f"Berdasarkan hasil pemeriksaan visual menggunakan model kecerdasan buatan (CNN MobileNetV2), tanaman pakcoy "
         f"pada foto ini teridentifikasi berada pada fase <strong>{_e(stage_label)}</strong> (perkiraan umur tanam "
         f"<strong>{_e(age_est)}</strong>) dengan tingkat keyakinan AI sebesar <strong>{confidence:.0%}</strong> dan skor "
-        f"kesiapan panen <strong>{readiness_idx:.0f}/100</strong>. Dari sisi ukuran fisik morfologi tanaman pakcoy asli, "
-        f"helaian daun utama memiliki <strong>panjang daun ± {leaf_len:.1f} cm</strong> (standar normal fase ini: "
-        f"{metrics['len_std_str']}) dan <strong>lebar daun ± {leaf_wid:.1f} cm</strong> (standar normal: "
-        f"{metrics['wid_std_str']}), sehingga menghasilkan <strong>luas permukaan per helai daun sekitar "
-        f"{leaf_area:.1f} cm²</strong>. Sementara itu, bentang <strong>diameter tajuk rumpun mencapai ± {canopy_dia:.1f} cm</strong> "
-        f"dengan tingkat kerapatan kanopi sebesar <strong>{comp_pct:.0f}%</strong>, yang menunjukkan bahwa susunan roset "
-        f"daun {'sudah tumbuh sangat rapat dan rimbun memenuhi tajuk tanaman' if comp_pct >= 65 else ('mulai merapat membentuk struktur tajuk yang seimbang' if comp_pct >= 42 else 'masih memiliki celah antar-tangkai karena tanaman sedang aktif melebarkan helai daun muda')}."
+        f"kesiapan panen <strong>{readiness_idx:.0f}/100</strong>. Berdasarkan estimasi morfologi visual untuk fase ini, "
+        f"helaian daun diperkirakan memiliki <strong>panjang ± {leaf_len:.1f} cm</strong> (referensi fase: "
+        f"{metrics['len_std_str']}) dan <strong>lebar ± {leaf_wid:.1f} cm</strong> (referensi fase: "
+        f"{metrics['wid_std_str']}), dengan <strong>estimasi luas daun ± {leaf_area:.1f} cm²</strong> dan "
+        f"<strong>estimasi diameter tajuk ± {canopy_dia:.1f} cm</strong>. Tingkat kerapatan kanopi terdeteksi sebesar "
+        f"<strong>{comp_pct:.0f}%</strong>, yang menunjukkan bahwa susunan roset daun "
+        f"{'sudah tumbuh sangat rapat dan rimbun memenuhi tajuk tanaman' if comp_pct >= 65 else ('mulai merapat membentuk struktur tajuk yang seimbang' if comp_pct >= 42 else 'masih memiliki celah antar-tangkai karena tanaman sedang aktif melebarkan helai daun muda')}."
     )
 
-    # Paragraf 2: Evaluasi Kesehatan Daun, Kadar Klorofil (SPAD), & Gejala Menguning
+    # Paragraf 2: Evaluasi Kesehatan Warna Daun & Proksi SPAD (HSV)
     if yellow_pct >= 8.0:
         p2 = (
-            f"Dari hasil analisis spektrum warna daun, terdeteksi adanya <strong>gejala daun menguning (klorosis) sebesar "
-            f"{yellow_pct:.1f}%</strong> dengan indeks klorofil hijau <strong>{spad_val:.1f} SPAD</strong> (kepekatan warna hijau "
-            f"<strong>{green_pct:.0f}%</strong>). Persentase warna kuning di atas 8% menandakan bahwa sebagian helai daun "
-            f"mengalami penurunan zat hijau daun (klorofil). Pada budidaya pakcoy, kondisi ini umumnya dipicu oleh tiga faktor "
-            f"utama: (1) kekurangan unsur hara makro terutama <strong>Nitrogen (N)</strong> atau <strong>Magnesium (Mg)</strong> "
-            f"yang dibutuhkan untuk pembentukan klorofil, (2) kondisi media tanam yang terlalu lembap/becek sehingga akar kekurangan "
-            f"oksigen dalam menyerap nutrisi, atau (3) kurangnya intensitas cahaya matahari pada helai daun bagian bawah."
+            f"Dari hasil analisis spektrum warna HSV, terdeteksi adanya <strong>gejala daun menguning (klorosis) sebesar "
+            f"{yellow_pct:.1f}%</strong> dengan proksi indeks klorofil visual <strong>± {spad_val:.1f} SPAD</strong> "
+            f"(estimasi non-alat; kepekatan hijau <strong>{green_pct:.0f}%</strong>). Persentase warna kuning di atas 8% "
+            f"menandakan penurunan zat hijau daun yang umumnya dipicu oleh kekurangan Nitrogen (N)/Magnesium (Mg), media "
+            f"terlalu becek, atau kurangnya pencahayaan pada daun bagian bawah."
         )
     elif yellow_pct >= 2.0:
         p2 = (
-            f"Evaluasi kesehatan warna daun menunjukkan kadar klorofil sebesar <strong>{spad_val:.1f} SPAD</strong> (kepekatan "
-            f"warna hijau <strong>{green_pct:.0f}%</strong>) dengan <strong>persentase daun menguning sebesar {yellow_pct:.1f}%</strong>. "
-            f"Kondisi ini tergolong normal dan cukup sehat, namun terdapat sedikit warna kekuningan ringan yang umumnya berasal "
-            f"dari daun tua paling bawah (<em>senescence</em> alami) atau pantulan cahaya pada tepi daun. Pertumbuhan fotosintesis "
-            f"tanaman secara keseluruhan tetap berjalan baik, tetapi ketersediaan air dan nutrisi tetap perlu dijaga agar gejala "
-            f"kekuningan tidak meluas ke daun muda."
+            f"Evaluasi warna daun menunjukkan proksi klorofil visual <strong>± {spad_val:.1f} SPAD</strong> (estimasi non-alat; "
+            f"kepekatan hijau <strong>{green_pct:.0f}%</strong>) dengan <strong>persentase daun menguning {yellow_pct:.1f}%</strong>. "
+            f"Kondisi ini tergolong normal dan cukup sehat, dengan sedikit kekuningan ringan pada daun tua bagian bawah (<em>senescence</em> alami) "
+            f"atau pantulan cahaya. Jaga ketersediaan air dan nutrisi agar gejala tidak meluas ke daun muda."
         )
     else:
         p2 = (
-            f"Evaluasi kesehatan warna daun menunjukkan kondisi yang <strong>sangat sehat dan prima</strong>, dengan indeks "
-            f"klorofil mencapai <strong>{spad_val:.1f} SPAD</strong> (kepekatan hijau <strong>{green_pct:.0f}%</strong>) serta "
-            f"persentase daun menguning yang sangat rendah yaitu hanya <strong>{yellow_pct:.1f}%</strong>. Warna hijau segar yang "
-            f"merata pada permukaan lamina daun menandakan bahwa penyerapan unsur hara Nitrogen, zat besi, dan air oleh perakaran "
-            f"berlangsung optimal, sehingga proses fotosintesis untuk pembentukan biomassa daun berjalan maksimal."
+            f"Evaluasi warna daun menunjukkan kondisi yang <strong>sangat sehat dan segar</strong>, dengan proksi klorofil visual "
+            f"<strong>± {spad_val:.1f} SPAD</strong> (estimasi non-alat; kepekatan hijau <strong>{green_pct:.0f}%</strong>) serta "
+            f"persentase daun menguning sangat rendah yaitu <strong>{yellow_pct:.1f}%</strong>. Warna hijau merata menandakan "
+            f"penyerapan hara dan proses fotosintesis berlangsung baik."
         )
 
     # Paragraf 3: Saran Tindakan Perawatan (Penyiraman, Nutrisi AB Mix / Pupuk, & Suhu)
@@ -4329,10 +4324,10 @@ def ai_plant_analysis_card(stage_key, stage_label, confidence, readiness_idx, me
 
     p3 = (
         f"<strong>Saran Perawatan Air, Nutrisi &amp; Lingkungan:</strong> Untuk menjaga pertumbuhan pakcoy tetap optimal, "
-        f"pastikan kelembapan media tanam selalu berada pada rentang ideal <strong>55% hingga 75%</strong> dengan jadwal "
+        f"pastikan kelembapan media tanam selalu berada pada rentang ideal <strong>55% hingga 76%</strong> dengan jadwal "
         f"penyiraman teratur pada pagi hari (pukul 07:00–08:00) dan sore hari (pukul 16:00–17:00). Selanjutnya, {nutrisi_advice}. "
         f"Jaga pH media tanam atau air nutrisi pada kisaran <strong>pH 6,0–6,8</strong> serta pertahankan suhu lingkungan "
-        f"di rentang <strong>20°C–30°C</strong> dengan paparan sinar matahari minimal 4–6 jam per hari.{sensor_sentence}"
+        f"optimal di rentang <strong>22°C–28°C</strong> (toleransi 20°C–30°C) dengan paparan sinar matahari minimal 4–6 jam per hari.{sensor_sentence}"
     )
 
     # Paragraf 4: Tindakan Sanitasi Daun, Pengendalian Hama, & Persiapan Panen
